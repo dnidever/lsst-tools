@@ -1,0 +1,8 @@
+##### REQUIRED #####
+mapper      /path/to/the/mapper/file/
+stages      /path/to/the/stages/list/file/
+config      /path/to/the/config/file/
+nmulti      10
+##### OPTIONAL #####
+hyperthread 1
+cmd2cdaxes  M,M-T,M-D
