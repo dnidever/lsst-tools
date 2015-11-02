@@ -1,8 +1,8 @@
-pro photred_processccddecam,redo=redo,stp=stp
+pro lsst_processccddecam,redo=redo,stp=stp
 
 ;+
 ;
-; PHOTRED_PROCESSCCDDECAM
+; LSST_PROCESSCCDDECAM
 ;
 ; This is a wrapper around the LSST processCcdDecam command.
 ;
@@ -18,9 +18,11 @@ pro photred_processccddecam,redo=redo,stp=stp
 
 COMMON lsst,setup
 
+thisprog = 'processCcdDecam'
+
 print,''
 print,'############################'
-print,'RUNNING LSST_PROCESSCCDDECAM'
+print,'RUNNING LSST_'+strupcase(thisprog)
 print,'############################'
 print,''
 
@@ -32,15 +34,14 @@ if testlogs eq 0 then FILE_MKDIR,'logs'
 
 ; Log files
 ;----------
-thisprog = 'PROCESSCCDDECAM'
-logfile = 'logs/'+thisprog+'.log'
+logfile = 'logs/'+strupcase(thisprog)+'.log'
 logfile = FILE_EXPAND_PATH(logfile)  ; want absolute filename
 if file_test(logfile) eq 0 then SPAWN,'touch '+logfile,out
 
 
 ; Print date and time to the logfile
-printlog,logfile,''
-printlog,logfile,'Starting LSST_'+thisprog+'  ',systime(0)
+lsst_printlog,logfile,''
+lsst_printlog,logfile,'Starting LSST_'+strupcase(thisprog)+'  ',systime(0)
 
 
 ; Check that all of the required programs are available
@@ -48,17 +49,17 @@ progs = ['lsst_loadsetup','lsst_getinput','lsst_updatelists']
 test = PROG_TEST(progs)
 if min(test) eq 0 then begin
   bd = where(test eq 0,nbd)
-  printlog,logfile,'SOME NECESSARY PROGRAMS ARE MISSING:'
-  printlog,logfile,progs[bd]
+  lsst_printlog,logfile,'SOME NECESSARY PROGRAMS ARE MISSING:'
+  lsst_printlog,logfile,progs[bd]
   return
 endif
 
 
-; Check that the DAOPHOT/ALLSTAR programs exist
-SPAWN,'which processCcdDecam.py',out,errout
-daophotfile = FILE_SEARCH(out,count=ndaophotfile)
-if (ndaophotfile eq 0) then begin
-  print,'processCcdDecam.py PROGRAM NOT AVAILABLE'
+; Check that the program exists
+SPAWN,'which '+thisprog+'.py',out,errout
+progfile = FILE_SEARCH(out,count=nprogfile)
+if (nprogfile eq 0) then begin
+  print,thisprog+'.py PROGRAM NOT AVAILABLE'
   return
 endif
 
@@ -106,7 +107,7 @@ ninputlines = lists.ninputlines
 ; No files to process
 ;---------------------
 if ninputlines eq 0 then begin
-  printlog,logfile,'NO FILES TO PROCESS'
+  lsst_printlog,logfile,'NO FILES TO PROCESS'
   return
 endif
 
@@ -128,7 +129,7 @@ ndirs = n_elements(dirs)
 ; Get the scripts directory from setup
 scriptsdir = READPAR(setup,'SCRIPTSDIR')
 if scriptsdir eq '' then begin
-  printlog,logfile,'NO SCRIPTS DIRECTORY'
+  lsst_printlog,logfile,'NO SCRIPTS DIRECTORY'
   return
 endif
 
@@ -157,10 +158,10 @@ nmulti = long(nmulti)
 
 ; LOAD THE "imagers" FILE
 ;----------------------------
-printlog,logfile,'Loading imager information'
+lsst_printlog,logfile,'Loading imager information'
 imagerstest = FILE_TEST(scriptsdir+'/imagers')
 if (imagerstest eq 0) then begin
-  printlog,logfile,'NO >>imagers<< file in '+scriptsdir+'  PLEASE CREATE ONE!'
+  lsst_printlog,logfile,'NO >>imagers<< file in '+scriptsdir+'  PLEASE CREATE ONE!'
   return
 endif
 ; The columns need to be: Telescope, Instrument, Naps, separator
@@ -174,7 +175,7 @@ imagers.observatory = strupcase(strtrim(imagers.observatory,2))
 singleind = where(imagers.namps eq 1,nsingle)
 if nsingle gt 0 then imagers[singleind].separator = ''
 if (n_tags(imagers) eq 0) then begin
-  printlog,logfile,'NO imagers in '+scriptsdir+'/imagers'
+  lsst_printlog,logfile,'NO imagers in '+scriptsdir+'/imagers'
   return
 endif
 
@@ -182,29 +183,29 @@ endif
 ;---------------------------
 ind_imager = where(imagers.telescope eq strupcase(telescope) and imagers.instrument eq strupcase(instrument),nind_imager)
 if nind_imager eq 0 then begin
-  printlog,logfile,'TELESCOPE='+telescope+' INSTRUMENT='+instrument+' NOT FOUND in >>imagers<< file'
+  lsst_printlog,logfile,'TELESCOPE='+telescope+' INSTRUMENT='+instrument+' NOT FOUND in >>imagers<< file'
   return
 endif
 thisimager = imagers[ind_imager[0]]
 ; print out imager info
-printlog,logfile,''
-printlog,logfile,'USING IMAGER:'
-printlog,logfile,'Telescope = '+thisimager.telescope
-printlog,logfile,'Instrument = '+thisimager.instrument
-printlog,logfile,'Namps = '+strtrim(thisimager.namps,2)
-printlog,logfile,"Separator = '"+thisimager.separator+"'"
-printlog,logfile,''
+lsst_printlog,logfile,''
+lsst_printlog,logfile,'USING IMAGER:'
+lsst_printlog,logfile,'Telescope = '+thisimager.telescope
+lsst_printlog,logfile,'Instrument = '+thisimager.instrument
+lsst_printlog,logfile,'Namps = '+strtrim(thisimager.namps,2)
+lsst_printlog,logfile,"Separator = '"+thisimager.separator+"'"
+lsst_printlog,logfile,''
 
 
 ;##################################################
 ;#  PROCESSING THE FILES
 ;##################################################
 ; Make the DAPHOT/ALLSTAR option files (.opt and als.opt)
-printlog,logfile,''
-printlog,logfile,'-----------------------'
-printlog,logfile,'PROCESSING THE FILES'
-printlog,logfile,'-----------------------'
-printlog,logfile,''
+lsst_printlog,logfile,''
+lsst_printlog,logfile,'-----------------------'
+lsst_printlog,logfile,'PROCESSING THE FILES'
+lsst_printlog,logfile,'-----------------------'
+lsst_printlog,logfile,''
 
 successarr = intarr(nfitsbaselist)-1                ; 0-bad, 1-good
 
@@ -221,16 +222,16 @@ for i=0,ninputlines-1 do begin
   com=''
 
   ; Checking GAIN
-  gain = PHOTRED_GETGAIN(file)
+  gain = LSST_GETGAIN(file)
   if gain le 0.0 then com=com+' GAIN ERROR'
 
   ; Checking READNOISE
-  rdnoise = PHOTRED_GETRDNOISE(file)
+  rdnoise = LSST_GETRDNOISE(file)
   if rdnoise le 0.0 then com=com+' READNOISE ERROR'
 
   ; There were header problems
   if com ne '' then begin
-    printlog,logfile,base,com
+    lsst_printlog,logfile,base,com
     PUSH,failurelist,file
     headerproblem = 1
     testing = 1
@@ -239,20 +240,20 @@ for i=0,ninputlines-1 do begin
 end
 
 ; UPDATE the Lists
-PHOTRED_UPDATELISTS,lists,outlist=outlist,successlist=successlist,$
+LSST_UPDATELISTS,lists,outlist=outlist,successlist=successlist,$
                     failurelist=failurelist,/silent
 
 ; There were HEADER problems
 if (headerproblem eq 1) then begin
-  printlog,logfile,''
-  printlog,logfile,'HEADER problems.  RETURNING'
-  printlog,logfile,''
+  lsst_printlog,logfile,''
+  lsst_printlog,logfile,'HEADER problems.  RETURNING'
+  lsst_printlog,logfile,''
   RETALL
 endif
 
 
 
-printlog,logfile,'Checking which files to make DAOPHOT/ALLSTAR option files for'
+lsst_printlog,logfile,'Checking which files to make DAOPHOT/ALLSTAR option files for'
 
 ; Figure out which files to make OPT files for
 undefine,tomakeoptlist
@@ -268,10 +269,10 @@ for i=0,ndirs-1 do begin
   ; Some files in this directory
   If (ngd gt 0) then begin
 
-    printlog,logfile,''
-    printlog,logfile,'Checking ',dirs[i]
-    ;printlog,logfile,'Making OPTION files for ',dirs[i]
-    printlog,logfile,''
+    lsst_printlog,logfile,''
+    lsst_printlog,logfile,'Checking ',dirs[i]
+    ;lsst_printlog,logfile,'Making OPTION files for ',dirs[i]
+    lsst_printlog,logfile,''
 
     ; Looping through files in this directory
     for j=0,ngd-1 do begin
@@ -279,7 +280,7 @@ for i=0,ndirs-1 do begin
       ind = gd[j]
       fil = fitsbaselist[ind]
       base = FILE_BASENAME(fil,'.fits')
-      printlog,logfile,fil
+      lsst_printlog,logfile,fil
 
       ; Make sure that the FITS files are FLOAT
       ;----------------------------------------
@@ -287,7 +288,7 @@ for i=0,ndirs-1 do begin
       head = HEADFITS(fil)
       bitpix = long(SXPAR(head,'BITPIX',/silent))
       if (bitpix eq 8 or bitpix eq 16) then begin
-        printlog,logfile,'BIXPIX = ',strtrim(bitpix,2),'.  Making image FLOAT'
+        lsst_printlog,logfile,'BIXPIX = ',strtrim(bitpix,2),'.  Making image FLOAT'
 
         ; Read in the image
         FITS_READ,fil,im,head,/no_abort,message=message
@@ -302,7 +303,7 @@ for i=0,ndirs-1 do begin
 
         ; There was a problem reading the image
         if (message[0] ne '') then begin
-          printlog,logfile,'PROBLEM READING IN ',fil
+          lsst_printlog,logfile,'PROBLEM READING IN ',fil
           successarr[ind] = 0
         endif
       endif
@@ -330,10 +331,10 @@ for i=0,ndirs-1 do begin
 endfor ; directories loop
 
 
-printlog,logfile,'Making DAOPHOT/ALLSTAR option files'
+lsst_printlog,logfile,'Making DAOPHOT/ALLSTAR option files'
 
 ntomakeoptlist = n_elements(tomakeoptlist)
-printlog,logfile,strtrim(ntomakeoptlist,2),' files need OPT files'
+lsst_printlog,logfile,strtrim(ntomakeoptlist,2),' files need OPT files'
 
 ; Make the OPT files
 ;-------------------
@@ -344,10 +345,10 @@ if ntomakeoptlist gt 0 then begin
   ; We could run them in groups of 5.  Lose less "runtime" between checks
 
   ; Make commands for daophot
-  cmd = "PHOTRED_MKOPT,'"+tomakeoptlist_base+"'"
+  cmd = "LSST_MKOPT,'"+tomakeoptlist_base+"'"
   if n_elements(daopsfva) gt 0 then cmd+=',va='+strtrim(daopsfva,2)
   if n_elements(daofitradfwhm) gt 0 then cmd+=',fitradius_fwhm='+strtrim(daofitradfwhm,2)
-  ;cmd = "cd,'"+tomakeoptlist_dir+"' & PHOTRED_MKOPT,'"+tomakeoptlist_base+"'"
+  ;cmd = "cd,'"+tomakeoptlist_dir+"' & LSST_MKOPT,'"+tomakeoptlist_base+"'"
   ; Submit the jobs to the daemon
   PBS_DAEMON,cmd,tomakeoptlist_dir,nmulti=nmulti,prefix='dopt',hyperthread=hyperthread,/idle,waittime=5,/cdtodir
 endif
@@ -381,15 +382,15 @@ for i=0,nfitsbaselist-1 do begin
     if (fwhm gt 20.) then successarr[i]=0
     if (ps gt 51.) then successarr[i]=0
 
-    if (rdnoise gt 50.) then printlog,logfile,optfile,' RDNOISE BAD.  TOO LARGE.'
-    if (gain gt 50.) then printlog,logfile,optfile,' GAIN BAD.  TOO LARGE.'
-    if (fwhm gt 20.) then printlog,logfile,optfile,' FWHM BAD.  TOO LARGE.'
-    if (ps gt 51.) then printlog,logfile,optfile,' PS BAD.  TOO LARGE.'
+    if (rdnoise gt 50.) then lsst_printlog,logfile,optfile,' RDNOISE BAD.  TOO LARGE.'
+    if (gain gt 50.) then lsst_printlog,logfile,optfile,' GAIN BAD.  TOO LARGE.'
+    if (fwhm gt 20.) then lsst_printlog,logfile,optfile,' FWHM BAD.  TOO LARGE.'
+    if (ps gt 51.) then lsst_printlog,logfile,optfile,' PS BAD.  TOO LARGE.'
 
   ; No OPT file
   endif else begin
     successarr[i]=0
-    printlog,logfile,optfile,' NOT FOUND'
+    lsst_printlog,logfile,optfile,' NOT FOUND'
   endelse
 
   ; Check ALS.OPT file
@@ -415,15 +416,15 @@ for i=0,nfitsbaselist-1 do begin
     if (os gt 100.) then successarr[i]=0
     if (ma gt 100.) then successarr[i]=0
 
-    if (fi gt 51.) then printlog,logfile,optfile,' FI BAD.  TOO LARGE.'
-    if (is gt 35.) then printlog,logfile,optfile,' IS BAD.  TOO LARGE.'
-    if (os gt 100.) then printlog,logfile,optfile,' OS BAD.  TOO LARGE.'
-    if (ma gt 100.) then printlog,logfile,optfile,' MA BAD.  TOO LARGE.'
+    if (fi gt 51.) then lsst_printlog,logfile,optfile,' FI BAD.  TOO LARGE.'
+    if (is gt 35.) then lsst_printlog,logfile,optfile,' IS BAD.  TOO LARGE.'
+    if (os gt 100.) then lsst_printlog,logfile,optfile,' OS BAD.  TOO LARGE.'
+    if (ma gt 100.) then lsst_printlog,logfile,optfile,' MA BAD.  TOO LARGE.'
 
   ; No ALS.OPT file
   endif else begin
     successarr[i]=0
-    printlog,logfile,alsfile,' NOT FOUND'
+    lsst_printlog,logfile,alsfile,' NOT FOUND'
   endelse
 
   ; Is everything okay?
@@ -439,9 +440,9 @@ Endfor ; files loop
 ;-----------------------------------------------------------
 if (psfcomsrc eq 1) and keyword_set(psfcomglobal) then begin
 
-  printlog,logfile,''
-  printlog,logfile,'Making CONFIRMED CELESTIAL SOURCES lists - GLOBAL METHOD'
-  printlog,logfile,''
+  lsst_printlog,logfile,''
+  lsst_printlog,logfile,'Making CONFIRMED CELESTIAL SOURCES lists - GLOBAL METHOD'
+  lsst_printlog,logfile,''
 
   ; Get field and chip information for each file
   fitsfieldlist = strarr(nfitsbaselist)
@@ -464,7 +465,7 @@ if (psfcomsrc eq 1) and keyword_set(psfcomglobal) then begin
     ifield = first_el(strsplit(dirfield[i],' ',/extract),/last)
 
     CD,idir  ; cd to the appropriate directory
-    PHOTRED_COMMONSOURCES_GLOBAL,ifield,setupdir=curdir,redo=redo
+    LSST_COMMONSOURCES_GLOBAL,ifield,setupdir=curdir,redo=redo
     CD,curdir
   endfor
   
@@ -477,9 +478,9 @@ if (psfcomsrc eq 1) and not keyword_set(psfcomglobal) then begin
 
   ; Make the confirmed CELESTIAL SOURCES list to be used to make PSF stars
   ;---------------------------------------------------------------------
-  printlog,logfile,''
-  printlog,logfile,'Making CONFIRMED CELESTIAL SOURCES lists - SINGLE-CHIP METHOD'
-  printlog,logfile,''
+  lsst_printlog,logfile,''
+  lsst_printlog,logfile,'Making CONFIRMED CELESTIAL SOURCES lists - SINGLE-CHIP METHOD'
+  lsst_printlog,logfile,''
 
   ; Get field and chip information for each file
   fitsfieldlist = strarr(nfitsbaselist)
@@ -506,9 +507,9 @@ if (psfcomsrc eq 1) and not keyword_set(psfcomglobal) then begin
     ind = where(alldirfieldchip eq idirfieldchip,nind)
 
     ; Make the CONFIRMED CELESTIAL SOURCES list to be used to make PSF stars
-    icmd = "PHOTRED_COMMONSOURCES,['"+strjoin(fitsbaselist[ind],"','")+"'],setupdir='"+curdir+"'"
+    icmd = "LSST_COMMONSOURCES,['"+strjoin(fitsbaselist[ind],"','")+"'],setupdir='"+curdir+"'"
     if keyword_set(redo) then icmd=icmd+',/redo'
-    ;  PHOTRED_COMMONSOURCES,fil,error=psferror,redo=redo
+    ;  LSST_COMMONSOURCES,fil,error=psferror,redo=redo
     cmd[i] = icmd
     cmnprocdirs[i] = fitsdirlist[ind[0]]
   endfor
@@ -526,12 +527,12 @@ endif
 ; Files with okay option files
 gd = where(successarr eq 1,ngd)
 if ngd eq 0 then begin
-  printlog,logfile,'NO GOOD .OPT and .ALS.OPT FILES FOUND'
+  lsst_printlog,logfile,'NO GOOD .OPT and .ALS.OPT FILES FOUND'
 
   PUSH,failurelist,inputlines
 
   ; UPDATE the Lists
-  PHOTRED_UPDATELISTS,lists,outlist=outlist,successlist=successlist,$
+  LSST_UPDATELISTS,lists,outlist=outlist,successlist=successlist,$
                       failurelist=failurelist,/silent
 
   return
@@ -566,14 +567,14 @@ If not keyword_set(redo) then begin
   bd = where(donearr eq 1,nbd)
   if nbd gt 0 then begin
     ; Print out the names
-    printlog,logfile,''
+    lsst_printlog,logfile,''
     for i=0,nbd-1 do $
-      printlog,logfile,procdirlist[bd[i]]+'/'+procbaselist[bd[i]]+' DAOPHOT ALREADY DONE'
+      lsst_printlog,logfile,procdirlist[bd[i]]+'/'+procbaselist[bd[i]]+' DAOPHOT ALREADY DONE'
 
     ; Add these to the "success" and "outlist" list
     PUSH,successlist,procdirlist[bd]+'/'+procbaselist[bd]+'.fits'
     PUSH,outlist,procdirlist[bd]+'/'+procbaselist[bd]+'.als'
-    PHOTRED_UPDATELISTS,lists,outlist=outlist,successlist=successlist,$
+    LSST_UPDATELISTS,lists,outlist=outlist,successlist=successlist,$
                         failurelist=failurelist,/silent
 
     ; Remove them from the arrays
@@ -581,15 +582,15 @@ If not keyword_set(redo) then begin
     if nbd eq nprocbaselist then UNDEFINE,procbaselist,procdirlist
     nprocbaselist = n_elements(procbaselist)
 
-    printlog,logfile,''
-    printlog,logfile,'REMOVING '+strtrim(nbd,2)+' files from INLIST.  '+$
+    lsst_printlog,logfile,''
+    lsst_printlog,logfile,'REMOVING '+strtrim(nbd,2)+' files from INLIST.  '+$
                      strtrim(nprocbaselist,2)+' files left to PROCESS'
-    printlog,logfile,''
+    lsst_printlog,logfile,''
   endif
 
   ; No files to run
   if nprocbaselist eq 0 then begin
-    printlog,logfile,'NO FILES TO PROCESS'
+    lsst_printlog,logfile,'NO FILES TO PROCESS'
     return
   endif
 
@@ -638,8 +639,8 @@ for i=0,nfitsbaselist-1 do begin
     if (alstest eq 0 or alslines lt 3) then successarr[i]=0
     if (aalstest eq 0 or aalslines lt 3) then successarr[i]=0
   
-    if (alstest eq 0) then printlog,logfile,base+'.als NOT FOUND'
-    if (aalstest eq 0) then printlog,logfile,base+'a.als NOT FOUND'
+    if (alstest eq 0) then lsst_printlog,logfile,base+'.als NOT FOUND'
+    if (aalstest eq 0) then lsst_printlog,logfile,base+'a.als NOT FOUND'
 
   endif
 
@@ -671,11 +672,11 @@ if (nbd gt 0) then begin
   failurelist = inputlines[bd]
 endif else UNDEFINE,failurelist
 
-PHOTRED_UPDATELISTS,lists,outlist=outlist,successlist=successlist,$
+LSST_UPDATELISTS,lists,outlist=outlist,successlist=successlist,$
                     failurelist=failurelist
 
 
-printlog,logfile,'PHOTRED_DAOPHOT Finished  ',systime(0)
+lsst_printlog,logfile,'LSST_'+strupcase(thisprog)+' Finished  ',systime(0)
 
 if keyword_set(stp) then stop
 

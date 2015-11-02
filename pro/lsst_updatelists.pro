@@ -1,15 +1,13 @@
-pro photred_updatelists,lists,outlist=outlist,successlist=successlist,$
-                        failurelist=failurelist,silent=silent,stp=stp
-
 ;+
 ;
-; PHOTRED_UPDATELISTS
+; LSST_UPDATELISTS
 ;
 ; This updates the lists (inputlist, outputlist, successlist and failurelist)
-; for a PHOTRED stage.
+; for a LSST stage.
 ;
 ; INPUTS:
-;  lists          The lists structure output by photred_getinput.
+;  stages         The stages structure with name, inputs and outputs for each.
+;  lists          The lists structure output by lsst_getinput.
 ;  =outlist       The list of new output files.
 ;  =successlist   The list of new successfully processed files.
 ;  =failurelist   The list of new failed files.
@@ -19,17 +17,22 @@ pro photred_updatelists,lists,outlist=outlist,successlist=successlist,$
 ;  The stage's lists will be updated
 ;
 ; USAGE:
-;  IDL>photred_updatelists,lists,outlist=outlist,successlist=successlist,$
+;  IDL>lsst_updatelists,stages,lists,outlist=outlist,successlist=successlist,$
 ;                          failurelist=failurelist,silent=silent,stp=stp
 ;
 ; By D.Nidever  March 2008
+;  updated for LSST   Nov 2015
 ;-
 
+pro lsst_updatelists,stages,lists,outlist=outlist,successlist=successlist,$
+                        failurelist=failurelist,silent=silent,stp=stp
+
 ; Not enough inputs
+nstages = n_elements(stages)
 nlists = n_elements(lists)
-if (nlists) eq 0 then begin
-  print,'Syntax - photred_updatelists,lists,outlist=outlist,successlist=successlist,'
-  print,'                             failurelist=failurelist,silent=silent,stp=stp'
+if nstages eq 0 or nlists eq 0 then begin
+  print,'Syntax - lsst_updatelists,stages,lists,outlist=outlist,successlist=successlist,'
+  print,'                                 failurelist=failurelist,silent=silent,stp=stp'
   return
 endif
 
@@ -67,11 +70,9 @@ endif
 ; Is "thisprog" a valid stage?
 ;-------------------------------
 thisprog = strupcase(lists.thisprog)
-stages = ['RENAME','WCS','SPLIT','DAOPHOT','MATCH','ALLFRAME','APCOR',$
-          'CALIB','ASTROM','COMBINE','DEREDDEN','SAVE','HTML',$
-          'APERPHOT','DAOGROW','MATCHCAT','COMBINECAT','FITDATA']   ; STDRED stages
+stagenames = stages.name
 ; NOT a valid stage
-stageind = where(stages eq thisprog,nstageind)
+stageind = where(strupcase(stagenames) eq strupcase(thisprog),nstageind)
 if (nstageind eq 0) then begin
   print,thisprog,' IS NOT A VALID STAGE'
   return

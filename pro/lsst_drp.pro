@@ -70,18 +70,6 @@ if min(test) eq 0 then begin
   return
 endif
 
-; Make sure we have the right printlog.pro, not Markwardt's version
-tempprogs = strsplit(!path,':',/extract)+'/printlog.pro'
-test = file_test(tempprogs)
-ind = where(test eq 1,nind)
-bd = where(stregex(tempprogs[ind],'markwardt',/boolean) eq 1,nbd)
-if nbd gt 0 then begin
-  baddir = file_dirname(tempprogs[ind[bd]])
-  print,"There is a version of Markwardt's PRINTLOG.PRO in "+baddir
-  print,'Please rename this program (i.e. printlog.pro.orig)'
-  return
-endif
-
 
 ; LOAD THE SETUP FILE
 ;--------------------
@@ -91,10 +79,17 @@ endif
 LSST_LOADSETUP,setup,count=count
 if (count lt 1) then return
 
-; Are we redoing?
+; Is REDO set
 doredo = READPAR(setup,'REDO')
 if keyword_set(redo) or (doredo ne '-1' and doredo ne '0') then redo=1
 
+; Load the stages
+LSST_LOADSTAGES,setup,stages,error=error
+if n_elements(error) gt 0 then return
+
+; Check the stages
+LSST_CHECKSTAGES,stages,error=error
+if n_elements(error) gt 0 then return
 
 
 ;#########################################
@@ -134,7 +129,7 @@ print,'LSST FINISHED'
 
 ; Run PHOTRED_SUMMARY
 ;--------------------
-LSST_SUMMARY
+LSST_SUMMARY,stages
 
 
 ; End logfile
