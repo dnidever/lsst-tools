@@ -1,8 +1,8 @@
-pro photred_loadsetup,setup,count=count,std=std,setupdir=setupdir,stp=stp
+pro lsst_loadsetup,setup,count=count,std=std,setupdir=setupdir,stp=stp
 
 ;+
 ;
-; PHOTRED_LOADSETUP
+; LSST_LOADSETUP
 ;
 ; INPUTS:
 ;  /stp     Stop at the end of the program.
@@ -16,7 +16,7 @@ pro photred_loadsetup,setup,count=count,std=std,setupdir=setupdir,stp=stp
 ;             was a problem.
 ;
 ; USAGE:
-;  IDL>photred_loadsetup,setup,count=count,std=std,stp=stp
+;  IDL>lsst_loadsetup,setup,count=count,std=std,stp=stp
 ;
 ; By D.Nidever  March 2008
 ;-
@@ -30,21 +30,20 @@ setup = strarr(2,2)+'-1'         ; no setup
 ; This is a 2xN array.  First colume are the keywords
 ; and the second column are the values.
 ; Use READPAR.PRO to read it
-if n_elements(setupdir) gt 0 then setupfiles=FILE_SEARCH(setupdir+'/photred.*setup',count=nsetupfiles) else $
-  setupfiles = FILE_SEARCH('photred.*setup',count=nsetupfiles)
+if n_elements(setupdir) gt 0 then setupfiles=FILE_SEARCH(setupdir+'/lsst.*setup',count=nsetupfiles) else $
+  setupfiles = FILE_SEARCH('lsst.*setup',count=nsetupfiles)
 if keyword_set(std) then begin
-  if n_elements(setupdir) gt 0 then setupfiles=FILE_SEARCH(setupdir+'/stdred.*setup',count=nsetupfiles)
-  setupfiles = FILE_SEARCH('stdred.*setup',count=nsetupfiles)
+  if n_elements(setupdir) gt 0 then setupfiles=FILE_SEARCH(setupdir+'/lsst.*setup',count=nsetupfiles)
+  setupfiles = FILE_SEARCH('lsst.*setup',count=nsetupfiles)
 endif
 if (nsetupfiles lt 1) then begin
-  if keyword_set(std) then print,'NO STDRED SETUP FILE' else $
-    print,'NO PHOTRED SETUP FILE'
+  print,'NO LSST SETUP FILE'
   count = -1             ; there was a problem
   return
 endif
 if (nsetupfiles gt 1) then begin
   if keyword_set(std) then print,'MORE THAN ONE STDRED SETUP FILE FOUND' else $
-    print,'MORE THAN ONE PHOTRED SETUP FILE FOUND'
+    print,'MORE THAN ONE LSST SETUP FILE FOUND'
   print,setupfiles
   count = -1              ; there was a problem
   return

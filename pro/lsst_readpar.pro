@@ -1,8 +1,8 @@
-function readpar,array,keyword,stp=stp,error=error
+function lsst_readpar,array,keyword,stp=stp,error=error
 
 ;+
 ; 
-; READPAR
+; LSST_READPAR
 ;
 ; This allows you to get a parameter value from
 ; a 2xN array of keyword/value pairs.
@@ -22,7 +22,7 @@ function readpar,array,keyword,stp=stp,error=error
 ;  =error   The error message if there was one, else undefined
 ;
 ; USAGE:
-;  IDL>value = readpar(setup,'MOSAIC')
+;  IDL>value = lsst_readpar(setup,'MOSAIC')
 ;
 ; By D. Nidever    Oct. 2007
 ;-

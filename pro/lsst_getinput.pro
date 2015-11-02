@@ -1,11 +1,11 @@
-function photred_getinput,thisprog,precursor,redo=redo,stp=stp,error=error,$
+function lsst_getinput,thisprog,precursor,redo=redo,stp=stp,error=error,$
                           extension=extension,noempty=noempty
 
 ;+
 ;
-; PHOTRED_GETINPUT
+; LSST_GETINPUT
 ;
-; This gets the input for a given PHOTRED stage.  The outputs from the precursor stage
+; This gets the input for a given LSST stage.  The outputs from the precursor stage
 ; are copied/moved over and the output list and successlist are checked to make sure
 ; that a file has not already been processed (unless /redo is set).
 ;
@@ -30,12 +30,12 @@ function photred_getinput,thisprog,precursor,redo=redo,stp=stp,error=error,$
 ;  =error       The error, if one occured, otherwise undefined.
 ;
 ; USAGE:
-;  IDL>lists = photred_getinput('DAOPHOT','SPLIT.output')
+;  IDL>lists = lsst_getinput('DAOPHOT','SPLIT.output')
 ;
 ; By D.Nidever  March 2008
 ;-
 
-COMMON photred,setup
+COMMON lsst,setup
 
 undefine,error
 
@@ -43,7 +43,7 @@ undefine,error
 ;-------------------
 nthisprog = n_elements(thisprog)
 if (nthisprog eq 0) then begin
-  print,'Syntax - lists = photred_getinput(thisprog,precursor,redo=redo)'
+  print,'Syntax - lists = lsst_getinput(thisprog,precursor,redo=redo)'
   return,{ninputlines:-1}
 endif
 
@@ -55,12 +55,24 @@ CATCH, Error_status
 
 ;This statement begins the error handler:  
 if (Error_status ne 0) then begin 
-   print,'PHOTRED_GETINPUT ERROR: ', !ERROR_STATE.MSG  
+   print,'LSST_GETINPUT ERROR: ', !ERROR_STATE.MSG  
    error = !ERROR_STATE.MSG
    CATCH, /CANCEL 
    return,{ninputlines:-1}
 endif
 
+; LOAD THE SETUP FILE if not passed
+;-----------------------------------
+; This is a 2xN array.  First colume are the keywords
+; and the second column are the values.
+; Use READPAR.PRO to read it
+if n_elements(setup) eq 0 then begin
+  LSST_LOADSETUP,setup,count=count
+  if count lt 1 then return
+endif
+
+; Load the stages
+LSST_LOADSTAGES,stages
 
 ; Is "thisprog" a valid stage?
 ;-------------------------------

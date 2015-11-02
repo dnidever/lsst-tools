@@ -1,13 +1,10 @@
-pro photred_daophot,redo=redo,stp=stp
+pro photred_processccddecam,redo=redo,stp=stp
 
 ;+
 ;
-; PHOTRED_DAOPHOT
+; PHOTRED_PROCESSCCDDECAM
 ;
-; This runs daophot for photred
-; Can be on pleione or just a single machine depending
-; on where this is launched from.
-; See daophot_setup.pro for how to make the pleione scripts
+; This is a wrapper around the LSST processCcdDecam command.
 ;
 ; INPUTS:
 ;  /redo Redo files that were already done.
@@ -16,17 +13,15 @@ pro photred_daophot,redo=redo,stp=stp
 ; OUTPUTS:
 ;  The DAOPHOT/ALLSTAR output files.
 ;
-; By D.Nidever  Feb 2008
+; By D.Nidever  Nov 2015
 ;-
 
-COMMON photred,setup
-
-; Don't use images that end in 'a.fits', 's.fits', or 'j.fits'
+COMMON lsst,setup
 
 print,''
-print,'########################'
-print,'RUNNING PHOTRED_DAOPHOT'
-print,'########################'
+print,'############################'
+print,'RUNNING LSST_PROCESSCCDDECAM'
+print,'############################'
 print,''
 
 CD,current=curdir
@@ -37,7 +32,7 @@ if testlogs eq 0 then FILE_MKDIR,'logs'
 
 ; Log files
 ;----------
-thisprog = 'DAOPHOT'
+thisprog = 'PROCESSCCDDECAM'
 logfile = 'logs/'+thisprog+'.log'
 logfile = FILE_EXPAND_PATH(logfile)  ; want absolute filename
 if file_test(logfile) eq 0 then SPAWN,'touch '+logfile,out
@@ -45,15 +40,11 @@ if file_test(logfile) eq 0 then SPAWN,'touch '+logfile,out
 
 ; Print date and time to the logfile
 printlog,logfile,''
-printlog,logfile,'Starting PHOTRED_'+thisprog+'  ',systime(0)
+printlog,logfile,'Starting LSST_'+thisprog+'  ',systime(0)
 
 
 ; Check that all of the required programs are available
-progs = ['readline','readlist','readpar','photred_getinput','photred_updatelists','photred_loadsetup',$
-         'photred_mkopt','imfwhm','resistant_mean','undefine','meanclip','pbs_daemon','printlog',$
-         'pbs_checkstat','pbs_makescript','mktemp','photred_getgain','photred_getrdnoise','push',$
-         'strsplitter','loadinput','touchzero','writeline','first_el','mad','maketemp','rndint',$
-         'mpfit','mpfitfun','mpfit2dfun','mpfit2dpeak']
+progs = ['lsst_loadsetup','lsst_getinput','lsst_updatelists']
 test = PROG_TEST(progs)
 if min(test) eq 0 then begin
   bd = where(test eq 0,nbd)
@@ -64,16 +55,10 @@ endif
 
 
 ; Check that the DAOPHOT/ALLSTAR programs exist
-SPAWN,'which daophot',out,errout
+SPAWN,'which processCcdDecam.py',out,errout
 daophotfile = FILE_SEARCH(out,count=ndaophotfile)
 if (ndaophotfile eq 0) then begin
-  print,'DAOPHOT PROGRAM NOT AVAILABLE'
-  return
-endif
-SPAWN,'which allstar',out,errout
-allstarfile = FILE_SEARCH(out,count=nallstarfile)
-if (nallstarfile eq 0) then begin
-  print,'ALLSTAR PROGRAM NOT AVAILABLE'
+  print,'processCcdDecam.py PROGRAM NOT AVAILABLE'
   return
 endif
 
@@ -84,42 +69,25 @@ endif
 ; and the second column are the values.
 ; Use READPAR.PRO to read it
 if n_elements(setup) eq 0 then begin
-  PHOTRED_LOADSETUP,setup,count=count
+  LSST_LOADSETUP,setup,count=count
   if count lt 1 then return
 endif
 
 
 ; Are we redoing?
-doredo = READPAR(setup,'REDO')
+doredo = LSST_READPAR(setup,'REDO')
 if keyword_set(redo) or (doredo ne '-1' and doredo ne '0') then redo=1 else redo=0
 
 ; Telescope, Instrument
-telescope = READPAR(setup,'TELESCOPE')
-instrument = READPAR(setup,'INSTRUMENT')
-
-; Are we running PSFSTARS?
-psfcomsrc = READPAR(setup,'PSFCOMSRC')
-if psfcomsrc ne '0' and psfcomsrc ne '' and psfcomsrc ne '-1' then psfcomsrc=1
-if strtrim(psfcomsrc,2) eq '0' then psfcomsrc=0
-if n_elements(psfcomsrc) eq 0 then psfcomsrc=1
-
-; Global Common PSF stars?
-psfcomglobal = READPAR(setup,'PSFCOMGLOBAL')
-if psfcomglobal ne '0' and psfcomglobal ne '' and psfcomglobal ne '-1' then psfcomglobal=1
-if strtrim(psfcomglobal,2) eq '0' then psfcomglobal=0
-if n_elements(psfcomglobal) eq 0 then psfcomglobal=1
+telescope = LSST_READPAR(setup,'TELESCOPE')
+instrument = LSST_READPAR(setup,'INSTRUMENT')
 
 ; Hyperthread?
-hyperthread = READPAR(setup,'hyperthread')
+hyperthread = LSST_READPAR(setup,'hyperthread')
 if hyperthread ne '0' and hyperthread ne '' and hyperthread ne '-1' then hyperthread=1
 if strtrim(hyperthread,2) eq '0' then hyperthread=0
 if n_elements(hyperthread) eq 0 then hyperthread=0
 
-; DAOPHOT .opt values
-daopsfva = READPAR(setup,'DAOPSFVA')
-if daopsfva ne '0' and daopsfva ne '' and daopsfva ne '-1' then undefine,daopsfva
-daofitradfwhm = READPAR(setup,'DAOFITRADFWHM')
-if daofitradfwhm ne '0' and daofitradfwhm ne '' and daofitradfwhm ne '-1' then undefine,daofitradfwhm
 
 
 ;###################
@@ -131,8 +99,7 @@ if daofitradfwhm ne '0' and daofitradfwhm ne '' and daofitradfwhm ne '-1' then u
 
 ; Get input
 ;-----------
-precursor = 'WCS'
-lists = PHOTRED_GETINPUT(thisprog,precursor,redo=redo,ext='fits')
+lists = LSST_GETINPUT(thisprog,redo=redo,ext='fits')
 ninputlines = lists.ninputlines
 
 

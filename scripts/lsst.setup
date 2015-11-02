@@ -1,8 +1,10 @@
 ##### REQUIRED #####
 mapper      /path/to/the/mapper/file/
-stages      /path/to/the/stages/list/file/
+#stages     /path/to/the/stages/file/
+stages      /Users/nidever/projects/lsst-tools/scripts/lsst_drp.stages
 config      /path/to/the/config/file/
 nmulti      10
 ##### OPTIONAL #####
-hyperthread 1
-cmd2cdaxes  M,M-T,M-D
+redo         0
+hyperthread  1
+cmd2cdaxes   M,M-T,M-D

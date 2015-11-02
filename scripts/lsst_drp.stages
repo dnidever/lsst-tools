@@ -1,4 +1,5 @@
-processCcdDecam
-makeCoaddTempExp
-coadd
-forcedPhotometry
+processCcdDecam      raw                 calexp
+makeCoaddTempExp     calexp              deepCoadd_tempExp
+assembleCoadd        deepCoadd_tempExp   deepCoadd_tempExp
+processCoadd         deepCoadd_tempExp   deepCoadd
+forcedPhot           deepCoadd           forced_src
