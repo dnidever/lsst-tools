@@ -1,8 +1,9 @@
 ##### REQUIRED #####
-mapper      /path/to/the/mapper/file/
-#stages     /path/to/the/stages/file/
-stages      /Users/nidever/projects/lsst-tools/scripts/lsst_drp.stages
-config      /path/to/the/config/file/
+mapperfile      /path/to/the/mapper/file/
+#stagesfile     /path/to/the/stages/file/
+stagesfile      /Users/nidever/projects/lsst-tools/scripts/lsst_drp.stages
+configdir      /path/to/the/config/file/
+datarepodir    /path/to/the/data/repo/
 nmulti      10
 ##### OPTIONAL #####
 redo         0
