@@ -1,6 +1,6 @@
 ;+
 ;
-; LSST_STAGES
+; LSST_LOADSTAGES
 ;
 ; This program loads the stages file.
 ;
@@ -38,16 +38,23 @@ if n_elements(setup) eq 0 then begin
 endif
 
 ; Pull stages filename from setup file
-stages_file = LSST_READPAR(setup,'stages')
-if stages_file eq '0' or stages_file eq '' or stages_file eq '-1' then begin
-  error = 'STAGES file NOT FOUND'
+stagesfile = LSST_READPAR(setup,'stagesfile')
+if stagesfile eq '0' or stagesfile eq '' or stagesfile eq '-1' then begin
+  error = 'No STAGES file in setup file'
+  if not keyword_set(silent) then print,error
+  count = -1
+  return
+endif
+; Does the file exist
+if file_test(stagesfile[0]) eq 0 then begin
+  error = stagesfile[0]+' NOT FOUND'
   if not keyword_set(silent) then print,error
   count = -1
   return
 endif
 
 ; Read the setup file
-LSST_READLINE,stages_file[0],lines,comment='#',count=nlines
+LSST_READLINE,stagesfile[0],lines,comment='#',count=nlines
 
 ; Parse the lines
 if nlines gt 0 then begin
@@ -87,7 +94,7 @@ if nlines gt 0 then begin
 
 ; No lines to process
 endif else begin
-  error = setupfiles[0]+' HAS NO LINES TO PARSE'
+  error = stagesfile[0]+' HAS NO LINES TO PARSE'
   if not keyword_set(silent) then print,error
   count = 0
   return

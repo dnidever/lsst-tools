@@ -1,11 +1,9 @@
-pro job_checkstat,statstr,jobid=jobid,stp=stp,hyperthread=hyperthread
-
 ;+
 ;
 ; JOB_CHECKSTAT
 ;
-; This checks the status of PBS jobs
-; If no jobs are found in queue then an empty
+; This checks the status of jobs for the job_daemon program.
+; If no jobs are found in the queue then an empty
 ; statstr structure is returned.
 ;
 ; INPUTS:
@@ -21,7 +19,10 @@ pro job_checkstat,statstr,jobid=jobid,stp=stp,hyperthread=hyperthread
 ;  IDL>job_checkstat,statstr,jobid=jobid,stp=stp
 ;
 ; By D.Nidever   February 2008
+;  Updated for LSST stack  Nov 2015
 ;-
+
+pro job_checkstat,statstr,jobid=jobid,stp=stp,hyperthread=hyperthread
 
 njobid = n_elements(jobid)
 
@@ -29,10 +30,8 @@ njobid = n_elements(jobid)
 ;--------
 If not keyword_set(hyperthread) then begin
 
-  addon = ''
-  if njobid gt 0 then addon=' '+jobid[0]
-
-  SPAWN,'qstat'+addon,out,errout
+  if njobid gt 0 then SPAWN,['qstat',jobid[0]],out,errout,/noshell else $
+    SPAWN,'qstat',out,errout,/noshell
   dum = where(out ne '',nout)
   ;if nout gt 2 and strmid(out[0],0,3) eq 'Job' then statlines=out[2:*]
   gd = where(stregex(out,'^'+jobid,/boolean) eq 1,ngd)

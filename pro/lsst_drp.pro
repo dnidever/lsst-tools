@@ -70,6 +70,14 @@ if min(test) eq 0 then begin
   return
 endif
 
+; CHECK THAT ALL THE NECESSARY PACKAGES WERE SETUP
+; pipe_tasks, obs_decam
+;eups list obs_decam
+;eups list pipe_tasks
+;nat-tvwna-inside-visitornet101-c-7547 % eups list obs_decam
+;   4d1f024    	current
+;   LOCAL:/Users/nidever/lsst/stack/lsstsw/lsstsw/build/obs_decam 	setup
+;   d6d494f    
 
 ; LOAD THE SETUP FILE
 ;--------------------
@@ -100,28 +108,34 @@ if n_elements(error) gt 0 then return
 ;----------------
 ; processCcdDecam
 ;----------------
-LSST_PROCESSCCDDECAM,redo=redo
+LSST_PROCESSCCDDECAM,redo=redo,error=error
+if n_elements(error) gt 0 then goto,theend
+
+stop
 
 ;------------------
 ; makeCoaddTempExp
 ;------------------
-LSST_MAKECOADDTEMPEXP,redo=redo
-
+LSST_MAKECOADDTEMPEXP,redo=redo,error=error
+if n_elements(error) gt 0 then goto,theend
 
 ;----------------
 ; assembleCoadd
 ;----------------
-LSST_ASSEMBLECOADD,redo=redo
+LSST_ASSEMBLECOADD,redo=redo,error=error
+if n_elements(error) gt 0 then goto,theend
 
 ;--------------
 ; processCoadd
 ;--------------
-LSST_PROCESSCOADD,redo=redo
+LSST_PROCESSCOADD,redo=redo,error=error
+if n_elements(error) gt 0 then goto,theend
 
 ;-------------
 ; forcedPhot
 ;-------------
-LSST_FORCEDPHOT,redo=redo
+LSST_FORCEDPHOT,redo=redo,error=error
+if n_elements(error) gt 0 then goto,theend
 
 
 print,'LSST FINISHED'
@@ -134,6 +148,7 @@ LSST_SUMMARY,stages
 
 ; End logfile
 ;------------
+theend:
 JOURNAL
 
 if keyword_set(stp) then stop

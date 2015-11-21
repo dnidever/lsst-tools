@@ -8,31 +8,33 @@
 ; INPUTS:
 ;  stages         The stages structure with name, inputs and outputs for each.
 ;  lists          The lists structure output by lsst_getinput.
+;  =logsdir       The "logs/" directory.  The defaul is just "logs/"
 ;  =outlist       The list of new output files.
 ;  =successlist   The list of new successfully processed files.
 ;  =failurelist   The list of new failed files.
+;  =errorlist     The list of errors that go with the failed files.
 ;  /silent        Don't print anything
 ;
 ; OUTPUTS:
 ;  The stage's lists will be updated
 ;
 ; USAGE:
-;  IDL>lsst_updatelists,stages,lists,outlist=outlist,successlist=successlist,$
-;                          failurelist=failurelist,silent=silent,stp=stp
+;  IDL>lsst_updatelists,stages,lists,logsdir=logsdir,outlist=outlist,successlist=successlist,$
+;                          failurelist=failurelist,errorlist=errorlist,silent=silent,stp=stp
 ;
 ; By D.Nidever  March 2008
 ;  updated for LSST   Nov 2015
 ;-
 
-pro lsst_updatelists,stages,lists,outlist=outlist,successlist=successlist,$
-                        failurelist=failurelist,silent=silent,stp=stp
+pro lsst_updatelists,stages,lists,logsdir=logsdir,outlist=outlist,successlist=successlist,$
+                        failurelist=failurelist,errorlist=errorlist,silent=silent,stp=stp
 
 ; Not enough inputs
 nstages = n_elements(stages)
 nlists = n_elements(lists)
 if nstages eq 0 or nlists eq 0 then begin
-  print,'Syntax - lsst_updatelists,stages,lists,outlist=outlist,successlist=successlist,'
-  print,'                                 failurelist=failurelist,silent=silent,stp=stp'
+  print,'Syntax - lsst_updatelists,stages,lists,logsdir=logsdir,outlist=outlist,successlist=successlist,'
+  print,'                                 failurelist=failurelist,errorlist=errorlist,silent=silent,stp=stp'
   return
 endif
 
@@ -78,13 +80,16 @@ if (nstageind eq 0) then begin
   return
 endif
 
+; Logs directory
+cd,current=curdir
+if n_elements(logsdir) eq 0 then logsdir=curdir+'/logs/'
 
 ; List filenames
-logfile = 'logs/'+lists.thisprog+'.log'
-inputfile = 'logs/'+lists.thisprog+'.inlist'
-outputfile = 'logs/'+lists.thisprog+'.outlist'
-successfile = 'logs/'+lists.thisprog+'.success'
-failurefile = 'logs/'+lists.thisprog+'.failure'
+logfile = logsdir+thisprog+'.log'
+inputfile = logsdir+thisprog+'.inlist'
+outputfile = logsdir+thisprog+'.outlist'
+successfile = logsdir+thisprog+'.success'
+failurefile = logsdir+thisprog+'.failure'
 
 
 ;##########################################

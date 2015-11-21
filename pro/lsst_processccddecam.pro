@@ -1,5 +1,3 @@
-pro lsst_processccddecam,redo=redo,stp=stp
-
 ;+
 ;
 ; LSST_PROCESSCCDDECAM
@@ -15,10 +13,13 @@ pro lsst_processccddecam,redo=redo,stp=stp
 ;
 ; By D.Nidever  Nov 2015
 ;-
+pro lsst_processccddecam,redo=redo,error=error,stp=stp
 
 COMMON lsst,setup
 
 thisprog = 'processCcdDecam'
+
+CD,current=curdir
 
 print,''
 print,'############################'
@@ -26,40 +27,28 @@ print,'RUNNING LSST_'+strupcase(thisprog)
 print,'############################'
 print,''
 
-CD,current=curdir
-
-; Does the logs/ directory exist?
-testlogs = file_test('logs',/directory)
-if testlogs eq 0 then FILE_MKDIR,'logs'
-
-; Log files
-;----------
-logfile = 'logs/'+strupcase(thisprog)+'.log'
-logfile = FILE_EXPAND_PATH(logfile)  ; want absolute filename
-if file_test(logfile) eq 0 then SPAWN,'touch '+logfile,out
-
-
 ; Print date and time to the logfile
-lsst_printlog,logfile,''
-lsst_printlog,logfile,'Starting LSST_'+strupcase(thisprog)+'  ',systime(0)
-
+print,''
+print,'Starting LSST_'+strupcase(thisprog)+'  ',systime(0)
 
 ; Check that all of the required programs are available
 progs = ['lsst_loadsetup','lsst_getinput','lsst_updatelists']
 test = PROG_TEST(progs)
 if min(test) eq 0 then begin
   bd = where(test eq 0,nbd)
-  lsst_printlog,logfile,'SOME NECESSARY PROGRAMS ARE MISSING:'
-  lsst_printlog,logfile,progs[bd]
+  error = 'SOME NECESSARY PROGRAMS ARE MISSING:'
+  print,error
+  print,progs[bd]
   return
 endif
 
 
-; Check that the program exists
+; Check that the program for this stage exists
 SPAWN,'which '+thisprog+'.py',out,errout
 progfile = FILE_SEARCH(out,count=nprogfile)
 if (nprogfile eq 0) then begin
-  print,thisprog+'.py PROGRAM NOT AVAILABLE'
+  error = thisprog+'.py PROGRAM NOT AVAILABLE'
+  print,error
   return
 endif
 
@@ -74,127 +63,212 @@ if n_elements(setup) eq 0 then begin
   if count lt 1 then return
 endif
 
+; Getting data repository directory
+datarepodir = LSST_READPAR(setup,'datarepodir')
+if datarepodir eq '0' or datarepodir eq '-1' or datarepodir eq '' then begin
+  error = 'No data repository directory'
+  if not keyword_set(silent) then print,error
+  return
+endif
+; Check that the datarepodir directory exists
+if file_test(datarepodir,/directory) eq 0 then begin
+  error = 'Data repository directory '+datarepodir+' NOT FOUND'
+  print,error
+  return
+endif
 
-; Are we redoing?
+; Logs directory and files
+logsdir = datarepodir+'logs/'                   ; logs directory
+testlogs = file_test(logsdir,/directory)        ; make sure it exists
+if testlogs eq 0 then FILE_MKDIR,'logs'
+logfile = logsdir+strupcase(thisprog)+'.log'    ; initialize logfile
+if file_test(logfile) eq 0 then SPAWN,'touch '+logfile,out
+
+; Redo
 doredo = LSST_READPAR(setup,'REDO')
 if keyword_set(redo) or (doredo ne '-1' and doredo ne '0') then redo=1 else redo=0
-
-; Telescope, Instrument
-telescope = LSST_READPAR(setup,'TELESCOPE')
-instrument = LSST_READPAR(setup,'INSTRUMENT')
-
-; Hyperthread?
+; Hyperthread
 hyperthread = LSST_READPAR(setup,'hyperthread')
 if hyperthread ne '0' and hyperthread ne '' and hyperthread ne '-1' then hyperthread=1
 if strtrim(hyperthread,2) eq '0' then hyperthread=0
-if n_elements(hyperthread) eq 0 then hyperthread=0
+; Nmulti
+nmulti = LSST_READPAR(setup,'NMULTI')
+if nmulti eq '0' or nmulti eq '' or nmulti eq '-1' then nmulti=1L
+nmulti = long(nmulti)
+; Mapperfile
+mapperfile = LSST_READPAR(setup,'mapperfile')
+if mapperfile eq '0' or mapperfile eq '-1' or mapperfile eq '' then begin
+  error = 'No Mapper File'
+  if not keyword_set(silent) then lsst_printlog,logfile,error
+  return
+endif
+; DOQA
+doqa = LSST_READPAR(setup,'DOQA')
+if doqa eq '0' or doqa eq '' or doqa eq '-1' then doqa=0
+
+; Load the stages information
+LSST_LOADSTAGES,setup,stages,error=error
+if n_elements(error) gt 0 then return
+
+; Load the mapper information
+LSST_LOADMAPPER,mapperfile,mapper,error=error
+if n_elements(error) gt 0 then return
+
+; Check that there is a mapper file
+if file_test(datarepodir+'/_mapper') eq 0 then begin
+  error = 'No _mapper file in '+datarepodir
+  lsst_printlog,logfile,error
+  return
+endif
+; Check that there is a registry
+if file_test(datarepodir+'/registry.sqlite3') eq 0 then begin
+  error = 'No registry.sqlite3 file in '+datarepodir+'.  Create one with an ingest script.'
+  lsst_printlog,logfile,error
+  return
+endif
+
+; Getting configuration file directory
+configdir = LSST_READPAR(setup,'configdir')
+if configdir eq '0' or configdir eq '-1' or configdir eq '' then begin
+  error = 'No configuration directory'
+  if not keyword_set(silent) then lsst_printlog,logfile,error
+  return
+endif
+; Is there a configuration file for this stage
+configfile = configdir+'/'+thisprog+'.config'
+if file_test(configfile) then begin
+  lsst_printlog,logfile,'Using configuration file ',configfile
+endif else begin
+  lsst_undefine,configfile
+  lsst_printlog,logfile,'No configuration file for '+thisprog
+endelse
+
+; Remove anything in the config/ directory otherwise it causes config
+;   change problems
+conf_files = file_search(datarepodir+'config/*',count=nconf_files)
+if nconf_files gt 0 then file_delete,conf_files,/allow
+lsst_printlog,logfile,'Cleaning config/ directory'
+; Remove anything in the schema/ directory
+sch_files = file_search(datarepodir+'schema/*',count=nsch_files)
+if nsch_files gt 0 then file_delete,sch_files,/allow
+lsst_printlog,logfile,'Cleaning schema/ directory'
 
 
 
 ;###################
 ; GETTING INPUTLIST
 ;###################
-; INLIST         FITS files (must be split)
-; OUTLIST        ALS files
-; SUCCESSLIST    FITS files
 
 ; Get input
 ;-----------
-lists = LSST_GETINPUT(thisprog,redo=redo,ext='fits')
+lists = LSST_GETINPUT(thisprog,stages,logsdir=logsdir,redo=redo)
 ninputlines = lists.ninputlines
+
+; If nothing in the INLIST create it from the registry
+if ninputlines eq 0 then begin
+
+  lsst_printlog,logfile,'No files in the INLIST.  Checking the registry database'
+
+  ; Getting visits from the registry
+  tempfile = maketemp('reg')
+  spawn,'sqlite3 -header registry.sqlite3 "SELECT * from raw;" >> '+tempfile,out,errout
+  reg = importascii(tempfile,/header,delimit='|',/silent)
+  file_delete,tempfile,/allow
+  ;spawn,'echo "select * from raw_visit;" | sqlite3 '+datarepodir+'/registry.sqlite3',out,errour
+  ;176837|2013-02-10|z
+  ;176838|2013-02-10|z
+  ;177071|2013-02-11|i
+  ;177072|2013-02-11|i
+  ;arr = strsplitter(out,'|',/extract)
+  ;visits = strtrim(reform(arr[0,*]),2)
+  ;nvisits = n_elements(visits)
+
+  ; Create a unique ccd-level name VISITS[CCDNUM]
+  ;  should really use "exposures.instcal.template" in the
+  ;  mapper file for this
+  visitccd = string(reg.visit,format='(i07)')+'['+string(reg.ccdnum,format='(i02)')+']'
+  nvisitccd = n_elements(visitccd)
+  
+  inputfile = logsdir+strupcase(thisprog)+'.inlist'
+  lsst_printlog,logfile,'Adding '+strtrim(nvisitccd,2)+' chip to INLIST'
+  WRITELINE,inputfile,visitccd
+  
+  ; Get inputs again
+  lists = LSST_GETINPUT(thisprog,stages,logsdir=logsdir,redo=redo)
+  ninputlines = lists.ninputlines
+endif
 
 
 ; No files to process
 ;---------------------
 if ninputlines eq 0 then begin
-  lsst_printlog,logfile,'NO FILES TO PROCESS'
+  error = 'NO FILES TO PROCESS'
+  lsst_printlog,logfile,error
   return
 endif
 
+; Getting the inputs and parsing into visit and ccdnum
 inputlines = lists.inputlines
+ninputs = n_elements(inputlines)
+; parse inputs to VISITS[CCDNUM]
+visit = strarr(ninputs)
+ccdnum = strarr(ninputs)
+for i=0,ninputs-1 do begin
+  len = strlen(strtrim(inputlines[i],2))
+  lo = strpos(inputlines[i],'[') 
+  visit[i] = strmid(inputlines[i],0,lo)
+  ccdnum[i] = strmid(inputlines[i],lo+1,len-lo-2)
+endfor
 
 
+; List of steps
+; 1. figure out the files to run on
+; 2. construct the array of commands, with config file
+; 3. run job_daemon
+; 4. Check the log files for failures and check that the output files
+;      are there
+; 5. update the lists
 
 
-fitsdirlist = FILE_DIRNAME(inputlines)
-fitsbaselist = FILE_BASENAME(inputlines)
-nfitsbaselist = n_elements(fitsbaselist)
+; Have some been done already??
+;------------------------------
+If not keyword_set(redo) then begin
 
-; Unique directories
-uidirs = uniq(fitsdirlist,sort(fitsdirlist))
-uidirs = uidirs[sort(uidirs)]
-dirs = fitsdirlist[uidirs]
-ndirs = n_elements(dirs)
+  calexpfile = datarepodir+'/'+visit+'/calexp/calexp-'+visit+'_'+ccdnum+'.fits'
+  donearr = file_test(calexpfile)
 
-; Get the scripts directory from setup
-scriptsdir = READPAR(setup,'SCRIPTSDIR')
-if scriptsdir eq '' then begin
-  lsst_printlog,logfile,'NO SCRIPTS DIRECTORY'
-  return
-endif
+  ; Some done already. DO NOT REDO
+  bd = where(donearr eq 1,nbd)
+  if nbd gt 0 then begin
+    ; Print out the names
+    lsst_printlog,logfile,''
+    lsst_printlog,logfile,inputlines[bd]+' '+thisprog+' ALREADY DONE'
 
+    ; Add these to the "success" and "outlist" list
+    LSST_PUSH,successlist,inputlines[bd]
+    LSST_PUSH,outlist,calexpfile[bd]
+    LSST_UPDATELISTS,stages,lists,outlist=outlist,successlist=successlist,$
+                        failurelist=failurelist,/silent
 
-; Copy the scripts to the directories
-;-------------------------------------
-; Checking that the scripts exist
-scripts = ['photo.opt','apcor.opt','daophot.sh','lstfilter','goodpsf.pro','srcfilter.pro']
-nscripts = n_elements(scripts)
-for i=0,nscripts-1 do begin
-  scriptfile = FILE_SEARCH(scriptsdir+'/'+scripts[i],count=nscriptfile)
-  if (nscriptfile eq 0) then begin
-    print,scriptsdir+'/'+scripts[i],' NOT FOUND'
+    ; Remove them from the arrays
+    if nbd lt ninputs then REMOVE,bd,inputlines,visit,ccdnum
+    if nbd eq ninputs then LSST_UNDEFINE,inputlines,visit,ccdnum
+    ninputs = n_elements(inputlines)
+
+    lsst_printlog,logfile,''
+    lsst_printlog,logfile,'REMOVING '+strtrim(nbd,2)+' files from INLIST.  '+$
+                          strtrim(ninputs,2)+' files left to PROCESS'
+    lsst_printlog,logfile,''
+  endif
+
+  ; No files to run
+  if ninputs eq 0 then begin
+    printlog,logfile,'NO FILES TO PROCESS'
     return
   endif
-end
-; Copy the scripts to the directories
-for i=0,ndirs-1 do begin
-  FILE_COPY,scriptsdir+'/'+scripts,dirs[i],/overwrite
-end
 
-; Getting NMULTI
-nmulti = READPAR(setup,'NMULTI')
-nmulti = long(nmulti)
+Endif ; some done already?
 
-
-; LOAD THE "imagers" FILE
-;----------------------------
-lsst_printlog,logfile,'Loading imager information'
-imagerstest = FILE_TEST(scriptsdir+'/imagers')
-if (imagerstest eq 0) then begin
-  lsst_printlog,logfile,'NO >>imagers<< file in '+scriptsdir+'  PLEASE CREATE ONE!'
-  return
-endif
-; The columns need to be: Telescope, Instrument, Naps, separator
-imagers_fieldnames = ['telescope','instrument','observatory','namps','separator']
-imagers_fieldtpes = [7,7,7,3,7]
-imagers = IMPORTASCII(scriptsdir+'/imagers',fieldnames=imagers_fieldnames,$
-                      fieldtypes=imagers_fieldtypes,comment='#')
-imagers.telescope = strupcase(strtrim(imagers.telescope,2))
-imagers.instrument = strupcase(strtrim(imagers.instrument,2))
-imagers.observatory = strupcase(strtrim(imagers.observatory,2))
-singleind = where(imagers.namps eq 1,nsingle)
-if nsingle gt 0 then imagers[singleind].separator = ''
-if (n_tags(imagers) eq 0) then begin
-  lsst_printlog,logfile,'NO imagers in '+scriptsdir+'/imagers'
-  return
-endif
-
-; What IMAGER are we using??
-;---------------------------
-ind_imager = where(imagers.telescope eq strupcase(telescope) and imagers.instrument eq strupcase(instrument),nind_imager)
-if nind_imager eq 0 then begin
-  lsst_printlog,logfile,'TELESCOPE='+telescope+' INSTRUMENT='+instrument+' NOT FOUND in >>imagers<< file'
-  return
-endif
-thisimager = imagers[ind_imager[0]]
-; print out imager info
-lsst_printlog,logfile,''
-lsst_printlog,logfile,'USING IMAGER:'
-lsst_printlog,logfile,'Telescope = '+thisimager.telescope
-lsst_printlog,logfile,'Instrument = '+thisimager.instrument
-lsst_printlog,logfile,'Namps = '+strtrim(thisimager.namps,2)
-lsst_printlog,logfile,"Separator = '"+thisimager.separator+"'"
-lsst_printlog,logfile,''
 
 
 ;##################################################
@@ -207,473 +281,174 @@ lsst_printlog,logfile,'PROCESSING THE FILES'
 lsst_printlog,logfile,'-----------------------'
 lsst_printlog,logfile,''
 
-successarr = intarr(nfitsbaselist)-1                ; 0-bad, 1-good
 
-
-
-; Check that the FITS header information can be properly interpreted
-;-------------------------------------------------------------------
-headerproblem = 0
-for i=0,ninputlines-1 do begin
-
-  file = inputlines[i]
-  base = FILE_BASENAME(file,'.fits')
-  head = HEADFITS(file)
-  com=''
-
-  ; Checking GAIN
-  gain = LSST_GETGAIN(file)
-  if gain le 0.0 then com=com+' GAIN ERROR'
-
-  ; Checking READNOISE
-  rdnoise = LSST_GETRDNOISE(file)
-  if rdnoise le 0.0 then com=com+' READNOISE ERROR'
-
-  ; There were header problems
-  if com ne '' then begin
-    lsst_printlog,logfile,base,com
-    PUSH,failurelist,file
-    headerproblem = 1
-    testing = 1
-  endif
-
-end
-
-; UPDATE the Lists
-LSST_UPDATELISTS,lists,outlist=outlist,successlist=successlist,$
-                    failurelist=failurelist,/silent
-
-; There were HEADER problems
-if (headerproblem eq 1) then begin
-  lsst_printlog,logfile,''
-  lsst_printlog,logfile,'HEADER problems.  RETURNING'
-  lsst_printlog,logfile,''
-  RETALL
-endif
-
-
-
-lsst_printlog,logfile,'Checking which files to make DAOPHOT/ALLSTAR option files for'
-
-; Figure out which files to make OPT files for
-undefine,tomakeoptlist
-; Loop through directories
-for i=0,ndirs-1 do begin
-
-  ; CD to the directory
-  CD,dirs[i]
-
-  ; Getting files that are in this directory
-  gd = where(fitsdirlist eq dirs[i],ngd)
-
-  ; Some files in this directory
-  If (ngd gt 0) then begin
-
-    lsst_printlog,logfile,''
-    lsst_printlog,logfile,'Checking ',dirs[i]
-    ;lsst_printlog,logfile,'Making OPTION files for ',dirs[i]
-    lsst_printlog,logfile,''
-
-    ; Looping through files in this directory
-    for j=0,ngd-1 do begin
-
-      ind = gd[j]
-      fil = fitsbaselist[ind]
-      base = FILE_BASENAME(fil,'.fits')
-      lsst_printlog,logfile,fil
-
-      ; Make sure that the FITS files are FLOAT
-      ;----------------------------------------
-      ; Make sure that |BITPIX| > 16
-      head = HEADFITS(fil)
-      bitpix = long(SXPAR(head,'BITPIX',/silent))
-      if (bitpix eq 8 or bitpix eq 16) then begin
-        lsst_printlog,logfile,'BIXPIX = ',strtrim(bitpix,2),'.  Making image FLOAT'
-
-        ; Read in the image
-        FITS_READ,fil,im,head,/no_abort,message=message
-
-        ; Make sure BZERO=0
-        bzero = sxpar(head,'BZERO',count=nbzero,/silent)
-        if nbzero gt 0 then sxaddpar,head,'BZERO',0.0
-
-        ; Write the FLOAT image
-        if (message[0] eq '') then $
-        FITS_WRITE,fil,float(im),head
-
-        ; There was a problem reading the image
-        if (message[0] ne '') then begin
-          lsst_printlog,logfile,'PROBLEM READING IN ',fil
-          successarr[ind] = 0
-        endif
-      endif
-
-      ; Do the OPT files exist already
-      testopt = FILE_TEST(base+'.opt')
-      testals = FILE_TEST(base+'.als.opt')
-
-
-      ; SHOULD we specify the SATURATION limits for the various
-      ; CHIPS????
-
-
-      ; Add to list of files to make OPT file for
-      ;--------------------------
-      if testopt eq 0 or testals eq 0 or keyword_set(redo) then PUSH,tomakeoptlist,dirs[i]+'/'+fil
-
-    Endfor ; files loop
-
-  endif ; some good files
-
-  ; cd back to original directory
-  CD,curdir
-
-endfor ; directories loop
-
-
-lsst_printlog,logfile,'Making DAOPHOT/ALLSTAR option files'
-
-ntomakeoptlist = n_elements(tomakeoptlist)
-lsst_printlog,logfile,strtrim(ntomakeoptlist,2),' files need OPT files'
-
-; Make the OPT files
-;-------------------
-if ntomakeoptlist gt 0 then begin
-  tomakeoptlist_base = file_basename(tomakeoptlist)
-  tomakeoptlist_dir = file_dirname(tomakeoptlist)
-
-  ; We could run them in groups of 5.  Lose less "runtime" between checks
-
-  ; Make commands for daophot
-  cmd = "LSST_MKOPT,'"+tomakeoptlist_base+"'"
-  if n_elements(daopsfva) gt 0 then cmd+=',va='+strtrim(daopsfva,2)
-  if n_elements(daofitradfwhm) gt 0 then cmd+=',fitradius_fwhm='+strtrim(daofitradfwhm,2)
-  ;cmd = "cd,'"+tomakeoptlist_dir+"' & LSST_MKOPT,'"+tomakeoptlist_base+"'"
-  ; Submit the jobs to the daemon
-  PBS_DAEMON,cmd,tomakeoptlist_dir,nmulti=nmulti,prefix='dopt',hyperthread=hyperthread,/idle,waittime=5,/cdtodir
-endif
-
-
-; Check all OPT files
-;---------------------
-for i=0,nfitsbaselist-1 do begin
-
-  CD,fitsdirlist[i]
-
-  base = file_basename(fitsbaselist[i],'.fits')
-
-  ; Check OPT file
-  ;----------------
-  optfile = base+'.opt'
-  testopt = FILE_TEST(optfile)
-  if testopt eq 1 then begin
-    READCOL,optfile,opttags,dum,optvals,format='A,A,F',/silent
-
-    ; Checking rdnoise, gain and fwhm
-    rdnoise = optvals[0]           ; RDNOISE, 1st line
-    gain = optvals[1]              ; GAIN, 2nd line
-    fwhm = optvals[4]              ; FWHM, 5th line
-    ps = optvals[12]               ; PSF radius, 13th line
-
-    ; Checking RDNOISE, GAIN, FWHM
-    ; FWHM<=20 for daophot
-    if (rdnoise gt 50.) then successarr[i]=0
-    if (gain gt 50.) then successarr[i]=0
-    if (fwhm gt 20.) then successarr[i]=0
-    if (ps gt 51.) then successarr[i]=0
-
-    if (rdnoise gt 50.) then lsst_printlog,logfile,optfile,' RDNOISE BAD.  TOO LARGE.'
-    if (gain gt 50.) then lsst_printlog,logfile,optfile,' GAIN BAD.  TOO LARGE.'
-    if (fwhm gt 20.) then lsst_printlog,logfile,optfile,' FWHM BAD.  TOO LARGE.'
-    if (ps gt 51.) then lsst_printlog,logfile,optfile,' PS BAD.  TOO LARGE.'
-
-  ; No OPT file
-  endif else begin
-    successarr[i]=0
-    lsst_printlog,logfile,optfile,' NOT FOUND'
-  endelse
-
-  ; Check ALS.OPT file
-  ;--------------------
-  alsfile = base+'.als.opt'
-  testals = FILE_TEST(alsfile)
-  if testals eq 1 then begin
-    READCOL,alsfile,alstags,dum,alsvals,format='A,A,F',/silent
-
-    ; Checking FI, IS, OS
-    fi = alsvals[0]               ; fitting radius, 1st line
-    is = alsvals[1]               ; inner sky radius, 2nd line
-    os = alsvals[2]               ; outer sky radius, 3rd line
-    ma = alsvals[9]               ; maximum group size, 10th line
-
-    ; Checking FI, IS, OS
-    ; FI<=51 for allstar
-    ; IS<=35 for allstar
-    ; OS<=100 for allstar
-    ; MA<=100 for allstar
-    if (fi gt 51.) then successarr[i]=0
-    if (is gt 35.) then successarr[i]=0
-    if (os gt 100.) then successarr[i]=0
-    if (ma gt 100.) then successarr[i]=0
-
-    if (fi gt 51.) then lsst_printlog,logfile,optfile,' FI BAD.  TOO LARGE.'
-    if (is gt 35.) then lsst_printlog,logfile,optfile,' IS BAD.  TOO LARGE.'
-    if (os gt 100.) then lsst_printlog,logfile,optfile,' OS BAD.  TOO LARGE.'
-    if (ma gt 100.) then lsst_printlog,logfile,optfile,' MA BAD.  TOO LARGE.'
-
-  ; No ALS.OPT file
-  endif else begin
-    successarr[i]=0
-    lsst_printlog,logfile,alsfile,' NOT FOUND'
-  endelse
-
-  ; Is everything okay?
-  ; If not "bad" then it is "good"
-  if successarr[i] ne 0 then successarr[i]=1
-
-  ; cd back to original directory
-  CD,curdir
-
-Endfor ; files loop
-
-; Make the Confirmed celestial sources lists, GLOBAL METHOD
-;-----------------------------------------------------------
-if (psfcomsrc eq 1) and keyword_set(psfcomglobal) then begin
-
-  lsst_printlog,logfile,''
-  lsst_printlog,logfile,'Making CONFIRMED CELESTIAL SOURCES lists - GLOBAL METHOD'
-  lsst_printlog,logfile,''
-
-  ; Get field and chip information for each file
-  fitsfieldlist = strarr(nfitsbaselist)
-  fitschiplist = strarr(nfitsbaselist)
-  for i=0,nfitsbaselist-1 do begin
-    base = file_basename(fitsbaselist[i],'.fits')
-    fitsfieldlist[i] = first_el(strsplit(base,'-',/extract))
-    fitschiplist[i] = first_el(strsplit(base,thisimager.separator,/extract),/last)
-  endfor
-
-  ; Group them into dir/field
-  alldirfield = fitsdirlist+' '+fitsfieldlist
-  ui = uniq(alldirfield,sort(alldirfield))
-  dirfield = alldirfield[ui]
-  ndirfield = n_elements(dirfield)
-  
-  ; Field loop
-  for i=0,ndirfield-1 do begin
-    idir = first_el(strsplit(dirfield[i],' ',/extract))
-    ifield = first_el(strsplit(dirfield[i],' ',/extract),/last)
-
-    CD,idir  ; cd to the appropriate directory
-    LSST_COMMONSOURCES_GLOBAL,ifield,setupdir=curdir,redo=redo
-    CD,curdir
-  endfor
-  
-endif
-
-
-; Make the Confirmed celestial sources lists, SINGLE-CHIP, OLD METHOD
-;--------------------------------------------------------------------
-if (psfcomsrc eq 1) and not keyword_set(psfcomglobal) then begin
-
-  ; Make the confirmed CELESTIAL SOURCES list to be used to make PSF stars
-  ;---------------------------------------------------------------------
-  lsst_printlog,logfile,''
-  lsst_printlog,logfile,'Making CONFIRMED CELESTIAL SOURCES lists - SINGLE-CHIP METHOD'
-  lsst_printlog,logfile,''
-
-  ; Get field and chip information for each file
-  fitsfieldlist = strarr(nfitsbaselist)
-  fitschiplist = strarr(nfitsbaselist)
-  for i=0,nfitsbaselist-1 do begin
-    base = file_basename(fitsbaselist[i],'.fits')
-    fitsfieldlist[i] = first_el(strsplit(base,'-',/extract))
-    fitschiplist[i] = first_el(strsplit(base,thisimager.separator,/extract),/last)
-  endfor
-
-  ; Group them into dir/field/chip groups
-  ;  the different groups shouldn't conflict with each other
-  alldirfieldchip = fitsdirlist+' '+fitsfieldlist+' '+fitschiplist
-  ui = uniq(alldirfieldchip,sort(alldirfieldchip))
-  dirfieldchip = alldirfieldchip[ui]
-  ndirfieldchip = n_elements(dirfieldchip)
-
-  ; Make the command files
-  cmd = strarr(ndirfieldchip)
-  cmnprocdirs = strarr(ndirfieldchip)
-  for i=0,ndirfieldchip-1 do begin
-
-    idirfieldchip = dirfieldchip[i]
-    ind = where(alldirfieldchip eq idirfieldchip,nind)
-
-    ; Make the CONFIRMED CELESTIAL SOURCES list to be used to make PSF stars
-    icmd = "LSST_COMMONSOURCES,['"+strjoin(fitsbaselist[ind],"','")+"'],setupdir='"+curdir+"'"
-    if keyword_set(redo) then icmd=icmd+',/redo'
-    ;  LSST_COMMONSOURCES,fil,error=psferror,redo=redo
-    cmd[i] = icmd
-    cmnprocdirs[i] = fitsdirlist[ind[0]]
-  endfor
-
-  ; Submit the jobs to the daemon
-  PBS_DAEMON,cmd,cmnprocdirs,nmulti=nmulti,prefix='dcmn',hyperthread=hyperthread,/idle,waittime=30,/cdtodir
-endif
-
-
-
-;##############################
-;#  RUNNING DAOPHOT
-;##############################
-
-; Files with okay option files
-gd = where(successarr eq 1,ngd)
-if ngd eq 0 then begin
-  lsst_printlog,logfile,'NO GOOD .OPT and .ALS.OPT FILES FOUND'
-
-  PUSH,failurelist,inputlines
-
-  ; UPDATE the Lists
-  LSST_UPDATELISTS,lists,outlist=outlist,successlist=successlist,$
-                      failurelist=failurelist,/silent
-
-  return
-endif
-
-
-; These are the files to process
-procbaselist = FILE_BASENAME(fitsbaselist[gd],'.fits')
-procdirlist = fitsdirlist[gd]
-nprocbaselist = n_elements(procbaselist)
-
-
-; Have some been done already??
-;------------------------------
-If not keyword_set(redo) then begin
-
-  ; Checking possible output files 
-  donearr = lonarr(nprocbaselist)
-  for i=0,nprocbaselist-1 do begin
-    base = procdirlist[i]+'/'+procbaselist[i]
-    ; Check if this file has an ALS file
-    alstest = FILE_TEST(base+'.als')
-    if alstest eq 1 then alslines=FILE_LINES(base+'.als') else alslines=0
-    ; Check if this file has an A.ALS file
-    aalstest = FILE_TEST(base+'a.als')
-    if aalstest eq 1 then aalslines=FILE_LINES(base+'a.als') else aalslines=0
-    ; Done properly?
-    if (alslines gt 3 and aalslines gt 3) then donearr[i]=1
-  end
-
-  ; Some done already. DO NOT REDO
-  bd = where(donearr eq 1,nbd)
-  if nbd gt 0 then begin
-    ; Print out the names
-    lsst_printlog,logfile,''
-    for i=0,nbd-1 do $
-      lsst_printlog,logfile,procdirlist[bd[i]]+'/'+procbaselist[bd[i]]+' DAOPHOT ALREADY DONE'
-
-    ; Add these to the "success" and "outlist" list
-    PUSH,successlist,procdirlist[bd]+'/'+procbaselist[bd]+'.fits'
-    PUSH,outlist,procdirlist[bd]+'/'+procbaselist[bd]+'.als'
-    LSST_UPDATELISTS,lists,outlist=outlist,successlist=successlist,$
-                        failurelist=failurelist,/silent
-
-    ; Remove them from the arrays
-    if nbd lt nprocbaselist then REMOVE,bd,procbaselist,procdirlist
-    if nbd eq nprocbaselist then UNDEFINE,procbaselist,procdirlist
-    nprocbaselist = n_elements(procbaselist)
-
-    lsst_printlog,logfile,''
-    lsst_printlog,logfile,'REMOVING '+strtrim(nbd,2)+' files from INLIST.  '+$
-                     strtrim(nprocbaselist,2)+' files left to PROCESS'
-    lsst_printlog,logfile,''
-  endif
-
-  ; No files to run
-  if nprocbaselist eq 0 then begin
-    lsst_printlog,logfile,'NO FILES TO PROCESS'
-    return
-  endif
-
-Endif ; some done already?
-
-;stop
-
-;----------------------
-; RUNNING THE COMMANDS
-;----------------------
-
-; Make commands for daophot
-cmd = './daophot.sh '+procbaselist
+;------------------------
+; Construct the commands
+;------------------------
+
+
+; get CCD numbers from the mapper file
+; or the registry "raw" table
+
+; An example of a processCcdDecam.py command:
+; processCcdDecam.py /lsst8/decam/redux/cp/cosmos/ --id visit=0177743 ccdnum=26..33 --configfile /lsst8/decam/redux/cp/cosmos/config.py --clobber-config
+
+; Make commands for processCcdDecam
+cmd = thisprog+'.py '+datarepodir+' --id visit='+visit+' ccdnum='+ccdnum
+if n_elements(configfile) gt 0 then cmd+=' --configfile '+configfile
+; Directory list,  datarepo/visitid/calexp/
+dirs = datarepodir+'/'+visit+'/calexp/'
+; Create the directories if necessary
+for i=0,ninputs-1 do if file_test(dirs[i],/directory) eq 0 then file_mkdir,dirs[i]
+; Make the script names,  processCcdDecam-visitid_ccdnum.batch
+inpname = 'processCcdDecam-'+visit+'_'+ccdnum
 
 ; Submit the jobs to the daemon
-PBS_DAEMON,cmd,procdirlist,nmulti=nmulti,prefix='dao',hyperthread=hyperthread,waittime=30,/cdtodir
+JOB_DAEMON,cmd,dirs,jobs=jobstr,nmulti=nmulti,inpname=inpname,hyperthread=hyperthread,statustime=60
 
+; SHOULD JOBSTR BE SAVED TO DISK??
 
-; IT WOULD BE BETTER TO UPDATE THE LISTS
-; AFTER EACH FILE IS PROCESSED!!!!!
-; CAN PBS_DAEMON DO THAT?????
-
+; return the name of the scriptfiles
+; give them reasonable names, name of file that is being processed,
+;     stage, data/time
 
 
 ;-------------------
 ; Checking OUTPUTS
 ;-------------------
+successarr = lonarr(ninputs)+1   ; all good until proven bad
+errorarr = strarr(ninputs)
+calexparr = strarr(ninputs)
 
-; Loop through all files in fitsbaselist
-for i=0,nfitsbaselist-1 do begin
+; Loop through all files
+print,''
+for i=0,n_elements(jobstr)-1 do begin
 
-  ; Only check "good" files
-  if (successarr[i] eq 1) then begin
+  lsst_undefine,errors1
 
-    CD,fitsdirlist[i]
-
-    fil = fitsbaselist[i]
-    base = FILE_BASENAME(fil,'.fits')
-    ; Check that this file has an ALS file
-    alstest = FILE_TEST(base+'.als')
-    if alstest eq 1 then alslines=FILE_LINES(base+'.als') else alslines=0
-    ; Check the A.ALS file
-    aalstest = FILE_TEST(base+'a.als')
-    if aalstest eq 1 then aalslines=FILE_LINES(base+'a.als') else aalslines=0
-
-    if (alstest eq 0 or alslines lt 3) then successarr[i]=0
-    if (aalstest eq 0 or aalslines lt 3) then successarr[i]=0
+; check the outputs of the STAGES file 
+; use the mapper policy file for the file/path naming conventions
   
-    if (alstest eq 0) then lsst_printlog,logfile,base+'.als NOT FOUND'
-    if (aalstest eq 0) then lsst_printlog,logfile,base+'a.als NOT FOUND'
+  ; Check for the calexp file
+  calexpfile = dirs[i]+'calexp-'+visit[i]+'_'+ccdnum[i]+'.fits'
+  calexparr[i] = calexpfile
+  if file_test(calexpfile) eq 0 then $
+    lsst_push,errors1,'Calexp file '+calexpfile+' NOT FOUND'
 
+  ; If the calexp exists, check that it was created/modified AFTER
+  ; the recent script WAS RUN!!  It could be a leftover of a previous
+  ; run of the same command
+  
+  ; Check the log file for errors
+  if file_test(jobstr[i].logfile) eq 1 then begin
+    LSST_READLINE,jobstr[i].logfile,loglines,count=nloglines
+    traceback_ind = where(stregex(loglines,'^Traceback',/boolean) eq 1,ntraceback)
+    if ntraceback gt 0 then begin
+      lastline = loglines[nloglines-1]
+      lsst_push,errors1,'Traceback error - '+lastline 
+    endif
+  endif else lsst_push,errors1,'Log file '+jobstr[i].logfile+' NOT FOUND'  ; no logfile
+
+  ; Failure
+  if n_elements(errors1) gt 0 then begin
+    successarr[i] = 0
+    lsst_printlog,logfile,inputlines[i]+' ERRORS'
+    lsst_printlog,logfile,'  '+errors1
+    errorarr[i] = strjoin(errors1,'; ')
   endif
+  
+endfor
 
-  CD,curdir
-
-end
-
+; Put logfilenames and errors in the logs/STAGE.failure file
 
 
 ;##########################################
 ;#  UPDATING LIST FILES
 ;##########################################
-undefine,outlist,successlist,failurelist
+lsst_undefine,outlist,successlist,failurelist,errorlist
 
 ; Success List
-ind = where(successarr eq 1,nind)
-if nind gt 0 then successlist = inputlines[ind] else UNDEFINE,successlist
-
+ind = where(successarr eq 1,nind,comp=bd,ncomp=nbd)
+if nind gt 0 then successlist=inputlines[ind]
 ; Output List
-; Creating the new output array, ALS files
-if (nind gt 0) then begin
-  bases = FILE_BASENAME(fitsbaselist[ind],'.fits')
-  outlist = fitsdirlist[ind]+'/'+bases+'.als'
-endif else UNDEFINE,outlist
-
+if nind gt 0 then outlist=calexparr[ind]
 ; Failure List
-bd = where(successarr eq 0,nbd)
-if (nbd gt 0) then begin
+if nbd gt 0 then begin
   failurelist = inputlines[bd]
-endif else UNDEFINE,failurelist
+  errorlist = errorarr[bd]
+endif
 
-LSST_UPDATELISTS,lists,outlist=outlist,successlist=successlist,$
-                    failurelist=failurelist
+LSST_UPDATELISTS,stages,lists,outlist=outlist,successlist=successlist,$
+                    failurelist=failurelist,errorlist=errorlist
+
+
+;##########################################
+;#  RUN QA
+;##########################################
+if keyword_set(doqa) and n_elements(successlist) gt 0 then begin
+
+   lsst_printlog,logfile,''
+   lsst_printlog,logfile,'---- Running QA ----'
+   
+   ; use job_daemon as well to parallelize
+   cmd = "lsst_processccddecam_qa,'"+datarepodir+"','"+visit[ind]+"','"+ccdnum[ind]+"'"
+   ; Directory list,  datarepo/visitid/calexp/
+   dirs = datarepodir+'/'+visit[ind]+'/plots/'
+   ; Create the directories if necessary
+   for i=0,nind-1 do if file_test(dirs[i],/directory) eq 0 then file_mkdir,dirs[i]
+   ; Make the script names,  processCcdDecam-visitid_ccdnum.batch
+   inpname = 'processCcdDecamQA-'+visit[ind]+'_'+ccdnum[ind]
+   JOB_DAEMON,cmd,dirs,jobs=qajobstr,nmulti=nmulti,inpname=inpname,hyperthread=hyperthread,statustime=60,/idle
+
+   ; should add histogram in magnitude
+   
+   ; Make HTML pages, SHOW FAILURES, and list of metrics
+
+   ; Load information for each input (visit/ccdnum)
+   info = replicate({datarepodir:'',visit:'',ccdnum:'',scriptfile:'',logfile:'',success:0,duration:0.0,ra:0.0,dec:0.0,dateobs:'',airmass:'',$
+                     filter:'',exptime:0.0,fwhm:0.0,fluxmag0:0.0,calexpfile:'',nx:0L,ny:0L,$
+                     medbackground:0.0,sigbackground:0.0,srcfile:'',nsources:0L,$
+                     calexp_plotfile:'',src_plotfile:''},ninputs)
+   info.visit = visit
+   info.ccdnum = ccdnum
+   info.success = successarr
+   for i=0,ninputs-1 do begin
+      qafile = datarepodir+'/'+visit[i]+'/qa/qa-'+visit[i]+'_'+ccdnum[i]+'.fits'
+      if file_test(qafile) then begin
+        info[i].success = 1
+        qastr = mrdfits(qafile,1,/silent)
+        info[i] = qastr  ; plug it in
+      endif
+   endfor
+
+   ; Load information for each visit
+   vui = uniq(visit,sort(visit))
+   uvisit = visit[vui]
+   nuvisit = n_elements(uvisit)
+   visitinfo = replicate({visit:'',nccdnum:0L,nsuccess:0,nfailed:0,nsources:0L,ra:0.0,dec:0.0,$
+                           dateobs:'',airmass:'',fwhm:0.0,filter:'',exptime:0.0},nuvisit)
+   visitinfo.visit = uvisit
+   for i=0,nuvisit-1 do begin
+     gd = where(info.visit eq uvisit[i],ngd)
+     visitinfo[i].nccdnum = ngd
+     visitinfo[i].nsuccess = total(info[gd].success)
+     visitinfo[i].nfailed = total(1-info[gd].success)
+     visitinfo[i].nsources = total(info[gd].nsources)
+     visitinfo[i].ra = median(info[gd].ra)
+     visitinfo[i].dec = median(info[gd].dec)
+     visitinfo[i].dateobs = info[gd[0]].dateobs
+     ;visitinfo[i].airmass =
+     visitinfo[i].fwhm = median(info[gd].fwhm)
+     visitinfo[i].filter = info[gd[0]].filter
+     visitinfo[i].exptime = info[gd[0]].exptime
+   endfor
+   
+   ; Create HTML files
+   LSST_PROCESSCCDDECAM_QAHTML,datarepodir,logfile,info,visitinfo
+   
+   stop
+endif
+
 
 
 lsst_printlog,logfile,'LSST_'+strupcase(thisprog)+' Finished  ',systime(0)

@@ -1,5 +1,3 @@
-pro lsst_readline,file,out,comment=comment,nlineread=nlineread,count=count,noblank=noblank,stp=stp
-
 ;+
 ;
 ; LSST_READLINE
@@ -24,6 +22,8 @@ pro lsst_readline,file,out,comment=comment,nlineread=nlineread,count=count,nobla
 ;
 ; By D.Nidever  Feb.2007
 ;-
+
+pro lsst_readline,file,out,comment=comment,nlineread=nlineread,count=count,noblank=noblank,stp=stp
 
 undefine,out
 count = 0

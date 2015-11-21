@@ -1,6 +1,3 @@
-function lsst_getinput,thisprog,precursor,redo=redo,stp=stp,error=error,$
-                          extension=extension,noempty=noempty
-
 ;+
 ;
 ; LSST_GETINPUT
@@ -11,13 +8,9 @@ function lsst_getinput,thisprog,precursor,redo=redo,stp=stp,error=error,$
 ;
 ; INPUTS:
 ;  thisprog     The stage to get the inputs for (e.g. 'DAOPHOT','MATCH', etc.)
-;  precursor    The precursor stage to get outputs from (e.g. 'SPLIT.output','DAOPHOT', etc.).
-;                 This can be an array.  If there are no files in the first one, then the next
-;                   one is checked, and so on.
-;                 If no ending is specified then ".outlist" is used.
-;                 The filename should not include "logs/" at the beginning, this will be
-;                   automatically prepended.
-;                 This is NOT a required input (i.e. RENAME has no precursor).
+;  stages       The stages structure with all the recent information
+;                 about the stages and their inputs and outputs
+;  =logsdir     The "logs/" directory.  The defaul is just "logs/"
 ;  /redo        Redo files already processed
 ;  /stp         Stop at the end of the program
 ;  =extension   Only accept inputs with this extension (i.e. 'als').  Do
@@ -30,20 +23,25 @@ function lsst_getinput,thisprog,precursor,redo=redo,stp=stp,error=error,$
 ;  =error       The error, if one occured, otherwise undefined.
 ;
 ; USAGE:
-;  IDL>lists = lsst_getinput('DAOPHOT','SPLIT.output')
+;  IDL>lists = lsst_getinput('DAOPHOT',stages)
 ;
 ; By D.Nidever  March 2008
+;  updated for LSST   Nov 2015
 ;-
+
+function lsst_getinput,thisprog,stages,logsdir=logsdir,redo=redo,stp=stp,error=error,$
+                          extension=extension,noempty=noempty
 
 COMMON lsst,setup
 
-undefine,error
+lsst_undefine,error
 
 ; Not enough inputs
 ;-------------------
 nthisprog = n_elements(thisprog)
-if (nthisprog eq 0) then begin
-  print,'Syntax - lists = lsst_getinput(thisprog,precursor,redo=redo)'
+if (nthisprog eq 0) or n_elements(stages) eq 0 then begin
+  error = 'Not enough inputs'
+  print,'Syntax - lists = lsst_getinput(thisprog,stages,logsdir=logsdir,redo=redo)'
   return,{ninputlines:-1}
 endif
 
@@ -68,37 +66,39 @@ endif
 ; Use READPAR.PRO to read it
 if n_elements(setup) eq 0 then begin
   LSST_LOADSETUP,setup,count=count
-  if count lt 1 then return
+  if count lt 1 then return,{ninputlines:-1}
 endif
 
-; Load the stages
-LSST_LOADSTAGES,stages
 
 ; Is "thisprog" a valid stage?
 ;-------------------------------
-thisprog = strupcase(thisprog)
-stages = ['RENAME','WCS','SPLIT','DAOPHOT','MATCH','ALLFRAME','APCOR',$
-          'CALIB','ASTROM','COMBINE','DEREDDEN','SAVE','HTML',$
-          'APERPHOT','DAOGROW','MATCHCAT','COMBINECAT','FITDATA']   ; STDRED stages
+upthisprog = strupcase(thisprog)
 ; NOT a valid stage
-stageind = where(stages eq thisprog,nstageind)
+stageind = where(strupcase(stages.name) eq upthisprog,nstageind)
 if (nstageind eq 0) then begin
-  print,thisprog,' IS NOT A VALID STAGE'
+  error = thisprog+' IS NOT A VALID STAGE'
+  print,error
   return,{ninputlines:-1}
 endif
 
+; Get the precursor stage
+if stageind gt 0 then precursor=stages[stagind[0]-1]
 
-; Does the logs/ directory exist?
-testlogs = FILE_TEST('logs',/directory)
-if testlogs eq 0 then FILE_MKDIR,'logs'
+; Logs directory
+cd,current=curdir
+if n_elements(logsdir) eq 0 then logsdir=curdir+'/logs/'
+
+; Does the logs directory exist?
+testlogs = FILE_TEST(logsdir,/directory)
+if testlogs eq 0 then FILE_MKDIR,logsdir
 
 ; Log files
 ;----------
-logfile = 'logs/'+thisprog+'.log'
-inputfile = 'logs/'+thisprog+'.inlist'
-outputfile = 'logs/'+thisprog+'.outlist'
-successfile = 'logs/'+thisprog+'.success'
-failurefile = 'logs/'+thisprog+'.failure'
+logfile = logsdir+upthisprog+'.log'
+inputfile = logsdir+upthisprog+'.inlist'
+outputfile = logsdir+upthisprog+'.outlist'
+successfile = logsdir+upthisprog+'.success'
+failurefile = logsdir+upthisprog+'.failure'
 ; If the files don't exist create them
 if file_test(logfile) eq 0 then TOUCHZERO,logfile
 if file_test(inputfile) eq 0 then TOUCHZERO,inputfile
@@ -107,45 +107,33 @@ if file_test(successfile) eq 0 then TOUCHZERO,successfile
 if file_test(failurefile) eq 0 then TOUCHZERO,failurefile
 
 
-; Check that all of the required programs are available
-progs = ['undefine','readline','readlist','readpar','strsplitter','writeline','push',$
-         'printlog','touchzero']
-test = PROG_TEST(progs)
-if min(test) eq 0 then begin
-  bd = where(test eq 0,nbd)
-  printlog,logfile,'SOME NECESSARY PROGRAMS ARE MISSING:'
-  printlog,logfile,progs[bd]
-  return,{ninputlines:-1}
-endif
-
-
-
 ;############################################
 ;#  DEALING WITH LIST FILES
 ;############################################
-printlog,logfile,''
-printlog,logfile,'--------------------'
-printlog,logfile,'CHECKING THE LISTS'
-printlog,logfile,'--------------------'
-printlog,logfile,''
+lsst_printlog,logfile,''
+lsst_printlog,logfile,'--------------------'
+lsst_printlog,logfile,'CHECKING THE LISTS'
+lsst_printlog,logfile,'--------------------'
+lsst_printlog,logfile,''
 
 
 ; CHECK LISTS
 ;-----------------
-READLIST,inputfile,inputlines,/exist,/unique,/fully,count=ninputlines,logfile=logfile,/silent
-printlog,logfile,strtrim(ninputlines,2),' files in '+thisprog+'.inlist'
+;LSST_READLIST,inputfile,inputlines,/exist,/unique,/fully,count=ninputlines,logfile=logfile,/silent
+LSST_READLIST,inputfile,inputlines,/unique,count=ninputlines,logfile=logfile,/silent
+lsst_printlog,logfile,strtrim(ninputlines,2),' files in '+upthisprog+'.inlist'
 
 ; Load the output list
-READLIST,outputfile,outputlines,/unique,/fully,count=noutputlines,logfile=logfile,/silent
-printlog,logfile,strtrim(noutputlines,2),' files in '+thisprog+'.outlist'
+LSST_READLIST,outputfile,outputlines,/unique,/fully,count=noutputlines,logfile=logfile,/silent
+lsst_printlog,logfile,strtrim(noutputlines,2),' files in '+upthisprog+'.outlist'
 
 ; Load the success list
-READLIST,successfile,successlines,/unique,/fully,count=nsuccesslines,logfile=logfile,/silent
-printlog,logfile,strtrim(nsuccesslines,2),' files in '+thisprog+'.success'
+LSST_READLIST,successfile,successlines,/unique,/fully,count=nsuccesslines,logfile=logfile,/silent
+lsst_printlog,logfile,strtrim(nsuccesslines,2),' files in '+upthisprog+'.success'
 
 ; Load the failure list
-READLIST,failurefile,failurelines,/unique,/fully,count=nfailurelines,logfile=logfile,/silent
-printlog,logfile,strtrim(nfailurelines,2),' files in '+thisprog+'.failure'
+LSST_READLIST,failurefile,failurelines,/unique,/fully,count=nfailurelines,logfile=logfile,/silent
+lsst_printlog,logfile,strtrim(nfailurelines,2),' files in '+upthisprog+'.failure'
 
 
 ; CREATING INLIST
@@ -158,27 +146,17 @@ count = 0
 WHILE (flag eq 0) do begin
 
   ; Getting the file name
-  pre = FILE_BASENAME(precursor[count])
-  parts = strsplit(pre,'.',/extract)
-  prestage = strupcase(parts[0])
-  nparts = n_elements(parts)
-  if nparts eq 1 then ending='.outlist' else ending='.'+parts[1]
-  prefile = 'logs/'+prestage+ending
+  prestage = precursor.name
+  upprestage = strupcase(prestage)
+  prefile = logsdir+upprestage+'.outlist'
   printlog,logfile,'PRESTAGE = ',prestage
-
-  ; Check that this is a valid stage
-  prestageind = where(stages eq prestage,nprestageind)
-  if (nprestageind eq 0) then begin
-    print,prestage,' IS NOT A VALID STAGE'
-    goto,BOMB
-  endif
 
   ; Test that the file exists
   pretest = FILE_TEST(prefile)
   if (pretest eq 1) then begin
     ; Read list, make sure the files exist!!
-    READLIST,prefile,poutputlines,/exist,/unique,/fully,count=npoutputlines,logfile=logfile,/silent
-    printlog,logfile,strtrim(npoutputlines,2),' files in '+prestage+ending+' file that exist'
+    LSST_READLIST,prefile,poutputlines,/exist,/unique,/fully,count=npoutputlines,logfile=logfile,/silent
+    lsst_printlog,logfile,strtrim(npoutputlines,2),' files in '+prestage+'.outlist file that exist'
   endif else npoutputlines=0
 
   ; Some files in PRECURSOR.outlist
@@ -190,14 +168,14 @@ WHILE (flag eq 0) do begin
 
     ; "Empty" PRECURSOR output
     ; ONLY if it is an "outlist" and not RENAME
-    if (prestage ne 'RENAME') and (ending eq '.outlist') and not keyword_set(noempty) then begin
-      printlog,logfile,'EMPTYING '+prestage+ending
+    if not keyword_set(noempty) then begin
+      printlog,logfile,'EMPTYING '+prestage+'.outlist'
       FILE_DELETE,prefile
       SPAWN,'touch '+prefile,out
     endif
 
     ; Add these to the inputlist
-    PUSH,inputlines,poutputlines
+    LSST_PUSH,inputlines,poutputlines
     ninputlines = n_elements(inputlines)
 
     ; Remove redundant names
@@ -212,11 +190,8 @@ WHILE (flag eq 0) do begin
   ; The PRECURSOR outlist is empty
   endif else begin
     if pretest eq 0 then $
-      printlog,logfile,'NO FILES in ',prestage+ending
+      printlog,logfile,'NO FILES in ',prestage+'.outlist'
   endelse
-
-
-  BOMB:
 
   ; Have we exhausted the precursor list
   if (count eq (nprecursor-1)) then flag=1
@@ -237,15 +212,15 @@ if (ninputlines gt 0) and (noutputlines gt 0) then begin
   MATCH,inputlines,outputlines,ind1,ind2,count=nind1
 
   if (nind1 gt 0) then begin
-    printlog,logfile,strtrim(nind1,2),' files in '+thisprog+'.outlist are also in '+thisprog+'.inlist'
+    printlog,logfile,strtrim(nind1,2),' files in '+upthisprog+'.outlist are also in '+upthisprog+'.inlist'
 
     ; REDOING these
     if keyword_set(redo) then begin
-      printlog,logfile,'REDO set.  Files in '+thisprog+'.outlist *NOT* removed from '+thisprog+'.inlist'
+      printlog,logfile,'REDO set.  Files in '+upthisprog+'.outlist *NOT* removed from '+upthisprog+'.inlist'
 
     ; Not redoing these
     endif else begin
-      printlog,logfile,strtrim(nind1,2),' files in '+thisprog+'.outlist removed from '+thisprog+'.inlist'
+      printlog,logfile,strtrim(nind1,2),' files in '+upthisprog+'.outlist removed from '+upthisprog+'.inlist'
       if nind1 lt ninputlines then REMOVE,ind1,inputlines
       if nind1 eq ninputlines then undefine,inputlines
       ninputlines = n_elements(inputlines)
@@ -260,15 +235,15 @@ if (ninputlines gt 0) and (nsuccesslines gt 0) then begin
   MATCH,inputlines,successlines,ind1b,ind2b,count=nind1b
 
   if (nind1b gt 0) then begin
-    printlog,logfile,strtrim(nind1b,2),' files in '+thisprog+'.success are also in '+thisprog+'.inlist'
+    printlog,logfile,strtrim(nind1b,2),' files in '+upthisprog+'.success are also in '+upthisprog+'.inlist'
 
     ; REDOING these
     if keyword_set(redo) then begin
-      printlog,logfile,'REDO set.  Files in '+thisprog+'.success *NOT* removed from '+thisprog+'.inlist'
+      printlog,logfile,'REDO set.  Files in '+upthisprog+'.success *NOT* removed from '+upthisprog+'.inlist'
 
     ; Not redoing these
     endif else begin
-      printlog,logfile,strtrim(nind1b,2),' files in '+thisprog+'.success removed from '+thisprog+'.inlist'
+      printlog,logfile,strtrim(nind1b,2),' files in '+upthisprog+'.success removed from '+upthisprog+'.inlist'
       if nind1b lt ninputlines then REMOVE,ind1b,inputlines
       if nind1b eq ninputlines then undefine,inputlines
       ninputlines = n_elements(inputlines)
@@ -298,7 +273,11 @@ if (n_elements(extension) gt 0 and ninputlines gt 0) then begin
   ndiff = ninputlines-ngdinp
   if ndiff gt 0 then printlog,logfile,strtrim(ndiff,2),' DO NOT HAVE THE REQUIRED >>',extension,'<< EXTENSION'
 
-end
+endif
+
+
+; It should check that the file "types", "datatypes" are correct from
+; the stages structure!!!
 
 
 ; Writing INLIST
@@ -320,22 +299,9 @@ endelse
 
 ; Making LIST structure
 ;------------------------
-;cmd = 'lists = {thisprog:thisprog'
-;if nprecursor gt 0 then cmd=cmd+', precursor:precursor'
-;if n_elements(prestage) gt 0 then cmd=cmd+', prestage:prestage'
-;if n_elements(prefile) gt 0 then cmd=cmd+', prefile:prefile'
-;if ninputlines gt 0 then cmd=cmd+', inputlines:inputlines'
-;cmd = cmd+', ninputlines:ninputlines'
-;if noutputlines gt 0 then cmd=cmd+', outputlines:outputlines'
-;cmd = cmd+', noutputlines:noutputlines'
-;if nsuccesslines gt 0 then cmd=cmd+', successlines:successlines'
-;cmd = cmd+', nsuccesslines:nsuccesslines'
-;if nfailurelines gt 0 then cmd=cmd+', failurelines:failurelines'
-;cmd = cmd+', nfailurelines:nfailurelines}'
-;dum = EXECUTE(cmd)
 
 lists = {thisprog:thisprog}
-if nprecursor gt 0 then lists = CREATE_STRUCT(lists,'precursor',precursor)
+if nprecursor gt 0 then lists = CREATE_STRUCT(lists,'precursor',precursor.name)
 if n_elements(prestage) gt 0 then lists = CREATE_STRUCT(lists,'prestage',prestage)
 if n_elements(prefile) gt 0 then lists = CREATE_STRUCT(lists,'prefile',prefile)
 if ninputlines gt 0 then lists = CREATE_STRUCT(lists,'inputlines',inputlines)

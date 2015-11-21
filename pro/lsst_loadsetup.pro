@@ -1,8 +1,8 @@
-pro lsst_loadsetup,setup,count=count,std=std,setupdir=setupdir,stp=stp
-
 ;+
 ;
 ; LSST_LOADSETUP
+;
+; This program loads the LSST setup file.
 ;
 ; INPUTS:
 ;  /stp     Stop at the end of the program.
@@ -19,7 +19,9 @@ pro lsst_loadsetup,setup,count=count,std=std,setupdir=setupdir,stp=stp
 ;  IDL>lsst_loadsetup,setup,count=count,std=std,stp=stp
 ;
 ; By D.Nidever  March 2008
+;  updated for LSST   Nov 2015
 ;-
+pro lsst_loadsetup,setup,count=count,std=std,setupdir=setupdir,stp=stp
 
 count = 0
 setup = strarr(2,2)+'-1'         ; no setup
