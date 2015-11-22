@@ -127,14 +127,14 @@ if file_test(datarepodir+'/registry.sqlite3') eq 0 then begin
   return
 endif
 
-; Getting configuration file directory
+; Getting user configuration file directory
 configdir = LSST_READPAR(setup,'configdir')
 if configdir eq '0' or configdir eq '-1' or configdir eq '' then begin
   error = 'No configuration directory'
   if not keyword_set(silent) then lsst_printlog,logfile,error
   return
 endif
-; Is there a configuration file for this stage
+; Is there a userconfiguration file for this stage
 configfile = configdir+'/'+thisprog+'.config'
 if file_test(configfile) then begin
   lsst_printlog,logfile,'Using configuration file ',configfile
@@ -143,16 +143,17 @@ endif else begin
   lsst_printlog,logfile,'No configuration file for '+thisprog
 endelse
 
-; Remove anything in the config/ directory otherwise it causes config
-;   change problems
-conf_files = file_search(datarepodir+'config/*',count=nconf_files)
+; Remove any config files for this stage in the config/ directory
+;   otherwise it causes config change problems
+conf_files = file_search(datarepodir+'config/'+thisprog+'*',count=nconf_files)
 if nconf_files gt 0 then file_delete,conf_files,/allow
-lsst_printlog,logfile,'Cleaning config/ directory'
+lsst_printlog,logfile,'Cleaning config/ directory of '+thisprog+' config files'
 ; Remove anything in the schema/ directory
 sch_files = file_search(datarepodir+'schema/*',count=nsch_files)
 if nsch_files gt 0 then file_delete,sch_files,/allow
 lsst_printlog,logfile,'Cleaning schema/ directory'
 
+; MAKE SURE THAT THE APPROPRIATE STACK PRODUCTS ARE SETUP WITH EUPS!!!
 
 
 ;###################
@@ -267,8 +268,28 @@ If not keyword_set(redo) then begin
     return
   endif
 
-Endif ; some done already?
-
+; Redoing, erase files for ones previously processed
+Endif else begin
+  scriptfile = datarepodir+'/'+visit+'/calexp/'+thisprog+'-'+visit+'_'+ccdnum+'.sh'
+  donearr = file_test(scriptfile)
+  ; Some done already, erase old files
+  prevdone = where(file_test(scriptfile) eq 1,nprevdone)
+  for i=0,nprevdone-1 do begin
+     ivisit = visit[prevdone[i]]
+     ivisitccd = visit[prevdone[i]]+'_'+ccdnum[prevdone[i]]
+     ; calexp, script/logfile, src, icSrc, icMatch, metadata, bkgd, qa, qascript, plot files
+     oldfiles = datarepodir+'/'+ivisit+'/'+$
+                ['calexp/calexp-'+ivisitccd+'.fits','calexp/'+thisprog+'-'+ivisitccd+'.sh','calexp/'+thisprog+'-'+ivisitccd+'.sh.log',$
+                 'src/src-'+ivisitccd+'.fits','icSrc/icSrc-'+ivisitccd+'.fits','bkgd/bkgd-'+ivisitccd+'.fits',$
+                 'icMatch/icMatch-'+ivisitccd+'.fits','metadata/metadata-'+ivisitccd+'.boost','qa/'+thisprog+'QA-'+ivisitccd+'.batch',$
+                 'qa/'+thisprog+'QA-'+ivisitccd+'.batch.log','qa/'+thisprog+'QA-'+ivisitccd+'.fits']
+     file_delete,oldfiles,/allow                                            ; it will only erase ones that exist
+     ; do plot files separately, file_delete can't deal with empty 
+     ;  wildcard strings properly
+     plotfiles = file_search(datarepodir+'/'+ivisit+'/plots/*-'+ivisitccd+'*.png',count=nplotfiles)
+     if nplotfiles gt 0 then file_delete,plotfiles,/allow
+  endfor
+Endelse
 
 
 ;##################################################
@@ -385,19 +406,19 @@ LSST_UPDATELISTS,stages,lists,outlist=outlist,successlist=successlist,$
 ;##########################################
 ;#  RUN QA
 ;##########################################
-if keyword_set(doqa) and n_elements(successlist) gt 0 then begin
+if keyword_set(doqa) then begin
 
    lsst_printlog,logfile,''
    lsst_printlog,logfile,'---- Running QA ----'
    
    ; use job_daemon as well to parallelize
-   cmd = "lsst_processccddecam_qa,'"+datarepodir+"','"+visit[ind]+"','"+ccdnum[ind]+"'"
+   cmd = "lsst_processccddecam_qa,'"+datarepodir+"','"+visit+"','"+ccdnum+"'"
    ; Directory list,  datarepo/visitid/calexp/
-   dirs = datarepodir+'/'+visit[ind]+'/plots/'
+   dirs = datarepodir+'/'+visit+'/qa/'
    ; Create the directories if necessary
-   for i=0,nind-1 do if file_test(dirs[i],/directory) eq 0 then file_mkdir,dirs[i]
+   for i=0,ninputs-1 do if file_test(dirs[i],/directory) eq 0 then file_mkdir,dirs[i]
    ; Make the script names,  processCcdDecam-visitid_ccdnum.batch
-   inpname = 'processCcdDecamQA-'+visit[ind]+'_'+ccdnum[ind]
+   inpname = 'processCcdDecamQA-'+visit+'_'+ccdnum
    JOB_DAEMON,cmd,dirs,jobs=qajobstr,nmulti=nmulti,inpname=inpname,hyperthread=hyperthread,statustime=60,/idle
 
    ; should add histogram in magnitude
@@ -405,42 +426,50 @@ if keyword_set(doqa) and n_elements(successlist) gt 0 then begin
    ; Make HTML pages, SHOW FAILURES, and list of metrics
 
    ; Load information for each input (visit/ccdnum)
-   info = replicate({datarepodir:'',visit:'',ccdnum:'',scriptfile:'',logfile:'',success:0,duration:0.0,ra:0.0,dec:0.0,dateobs:'',airmass:'',$
-                     filter:'',exptime:0.0,fwhm:0.0,fluxmag0:0.0,calexpfile:'',nx:0L,ny:0L,$
-                     medbackground:0.0,sigbackground:0.0,srcfile:'',nsources:0L,$
-                     calexp_plotfile:'',src_plotfile:''},ninputs)
+   info = replicate({datarepodir:'',visit:'',ccdnum:'',scriptfile:'',logfile:'',userconfigfile:'',finalconfigfile:'',$
+                     success:0,duration:-1.0,ra:-1.0d0,dec:-1.0d0,dateobs:'',airmass:'',$
+                     filter:'',exptime:-1.0,fwhm:-1.0,fluxmag0:-1.0,calexpfile:'',nx:-1L,ny:-1L,$
+                     medbackground:-1.0,sigbackground:-1.0,srcfile:'',nsources:-1L,calexp_plotfile:'',src_plotfile:'',$
+                     initpsffwhm:-1.0,npsfstars_selected:-1L,npsfstars_used:-1L,ncosmicrays:-1L,wcsrms:-1.0,ndetected:-1L,ndeblended:-1L},ninputs)
    info.visit = visit
    info.ccdnum = ccdnum
    info.success = successarr
    for i=0,ninputs-1 do begin
-      qafile = datarepodir+'/'+visit[i]+'/qa/qa-'+visit[i]+'_'+ccdnum[i]+'.fits'
+      qafile = datarepodir+'/'+visit[i]+'/qa/'+thisprog+'QA-'+visit[i]+'_'+ccdnum[i]+'.fits'
       if file_test(qafile) then begin
         info[i].success = 1
         qastr = mrdfits(qafile,1,/silent)
         info[i] = qastr  ; plug it in
       endif
    endfor
-
+   if n_elements(configfile) gt 0 then info.userconfigfile=configfile
+   finalconfigfile = datarepodir+'/config/'+thisprog+'.py'
+   info.finalconfigfile = finalconfigfile
+   
    ; Load information for each visit
    vui = uniq(visit,sort(visit))
    uvisit = visit[vui]
    nuvisit = n_elements(uvisit)
-   visitinfo = replicate({visit:'',nccdnum:0L,nsuccess:0,nfailed:0,nsources:0L,ra:0.0,dec:0.0,$
+   visitinfo = replicate({visit:'',nccdnum:0L,nsuccess:0,nfailed:0,percsuccess:0.0,nsources:0L,ra:0.0,dec:0.0,$
                            dateobs:'',airmass:'',fwhm:0.0,filter:'',exptime:0.0},nuvisit)
    visitinfo.visit = uvisit
    for i=0,nuvisit-1 do begin
      gd = where(info.visit eq uvisit[i],ngd)
+     gdsuccess = where(info.visit eq uvisit[i] and info.success eq 1,ngdsuccess)
      visitinfo[i].nccdnum = ngd
      visitinfo[i].nsuccess = total(info[gd].success)
      visitinfo[i].nfailed = total(1-info[gd].success)
+     visitinfo[i].percsuccess = total(float(info[gd].success/(ngd>1)))
      visitinfo[i].nsources = total(info[gd].nsources)
-     visitinfo[i].ra = median(info[gd].ra)
-     visitinfo[i].dec = median(info[gd].dec)
-     visitinfo[i].dateobs = info[gd[0]].dateobs
-     ;visitinfo[i].airmass =
-     visitinfo[i].fwhm = median(info[gd].fwhm)
-     visitinfo[i].filter = info[gd[0]].filter
-     visitinfo[i].exptime = info[gd[0]].exptime
+     if ngdsuccess gt 0 then begin
+       visitinfo[i].ra = median([info[gdsuccess].ra])
+       visitinfo[i].dec = median([info[gdsuccess].dec])
+       visitinfo[i].dateobs = info[gdsuccess[0]].dateobs
+       ;visitinfo[i].airmass =
+       visitinfo[i].fwhm = median([info[gdsuccess].fwhm])
+       visitinfo[i].filter = info[gdsuccess[0]].filter
+       visitinfo[i].exptime = info[gdsuccess[0]].exptime
+     endif
    endfor
    
    ; Create HTML files
@@ -448,8 +477,6 @@ if keyword_set(doqa) and n_elements(successlist) gt 0 then begin
    
    stop
 endif
-
-
 
 lsst_printlog,logfile,'LSST_'+strupcase(thisprog)+' Finished  ',systime(0)
 

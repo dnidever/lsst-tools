@@ -2,13 +2,24 @@ pro lsst_processccddecam_qa,datarepodir,visit,ccdnum,qastr
 
 ; This makes QA plots for a single processCcdDecam output file visit/ccdnum
 
+thisprog = 'processCcdDecam'
+  
+; Plot directory
 plotdir = datarepodir+'/'+visit+'/plots/'
 if file_test(plotdir,/directory) eq 0 then file_mkdir,plotdir  
 
+; QA structure filename
+qadir = datarepodir+'/'+visit+'/qa/'
+if file_test(qadir,/directory) eq 0 then file_mkdir,qadir
+qafile = qadir+thisprog+'QA-'+visit+'_'+ccdnum+'.fits'
+if file_test(qafile) then file_delete,qafile,/allow  ; erase old version
+
 ; Initialize the QA structure
-qastr = {datarepodir:'',visit:'',ccdnum:'',scriptfile:'',logfile:'',success:0,duration:0.0,ra:0.0,dec:0.0,dateobs:'',airmass:'',$
-                     filter:'',exptime:0.0,fwhm:0.0,fluxmag0:0.0,calexpfile:'',nx:0L,ny:0L,$
-                     medbackground:0.0,sigbackground:0.0,srcfile:'',nsources:0L,calexp_plotfile:'',src_plotfile:''}
+qastr = {datarepodir:'',visit:'',ccdnum:'',scriptfile:'',logfile:'',userconfigfile:'',finalconfigfile:'',$
+         success:0,duration:-1.0,ra:-1.0d0,dec:-1.0d0,dateobs:'',airmass:'',$
+         filter:'',exptime:-1.0,fwhm:-1.0,fluxmag0:-1.0,calexpfile:'',nx:-1L,ny:-1L,$
+         medbackground:-1.0,sigbackground:-1.0,srcfile:'',nsources:-1L,calexp_plotfile:'',src_plotfile:'',$
+         initpsffwhm:-1.0,npsfstars_selected:-1L,npsfstars_used:-1L,ncosmicrays:-1L,wcsrms:-1.0,ndetected:-1L,ndeblended:-1L}
 qastr.datarepodir = datarepodir
 qastr.visit = visit[0]
 qastr.ccdnum = ccdnum[0]
@@ -136,10 +147,85 @@ endif else pngfile2=''    ; scatter plot
 
 set_plot,'x'
 
+; Grab information from the logfile, astrometric accuracy/scatter, etc.
+if file_test(logfile) then begin
+
+  LSST_READLINE,logfile,loglines,comment='#',count=nloglines
+
+  ; processCcdDecam.calibrate: installInitialPsf fwhm=7.62377514116 pixels; size=15 pixels
+  initpsfind = where(stregex(loglines,'^processCcdDecam.calibrate: installInitialPsf ',/boolean) eq 1,ninitpsf)
+  if ninitpsf gt 0 then begin
+    line1 = loglines[initpsfind[0]]
+    lo = strpos(line1,'fwhm=')
+    hi = strpos(line1,'pixels;') 
+    initpsffwhm = float(strmid(line1,lo+5,hi-lo-6))
+    qastr.initpsffwhm = initpsffwhm
+  endif
+  ; processCcdDecam.calibrate.measurePsf: PSF star selector found 98 candidates
+  psfstarselectedind = where(stregex(loglines,'^processCcdDecam.calibrate.measurePsf: PSF star selector',/boolean) eq 1,npsfstarselected)
+  if npsfstarselected gt 0 then begin
+    line1 = loglines[psfstarselectedind[0]]
+    lo = strpos(line1,'found ')
+    hi = strpos(line1,'candidates') 
+    npsfstars_selected = long(strmid(line1,lo+6,hi-lo-7))
+    qastr.npsfstars_selected = npsfstars_selected
+  endif
+  ; processCcdDecam.calibrate.measurePsf: PSF determination using 67/98 stars.
+  psfstarsusedind = where(stregex(loglines,'^processCcdDecam.calibrate.measurePsf: PSF determination using',/boolean) eq 1,npsfstarsused)
+  if npsfstarsused gt 0 then begin
+    line1 = loglines[psfstarsusedind[0]]
+    dum = strsplit(line1,' ',/extract)
+    lo = strpos(line1,'using ')
+    hi = strpos(line1,'stars') 
+    dum = strmid(line1,lo+6,hi-lo-7)
+    psfstarsused = long( (strsplit(dum,'/',/extract))[0] )
+    qastr.npsfstars_used = psfstarsused
+  endif
+  ; processCcdDecam.calibrate.repair: Identified 62 cosmic rays.
+  cosmicraysind = where(stregex(loglines,'^processCcdDecam.calibrate.repair: Identified ',/boolean) eq 1 and $
+                     stregex(loglines,'cosmic rays',/boolean) eq 1,ncosmicraysind)
+  if ncosmicraysind gt 0 then begin
+    line1 = loglines[cosmicraysind[0]]  ; there normally are two
+    dum = strsplit(line1,' ',/extract)
+    lo = strpos(line1,'Identified')
+    hi = strpos(line1,'cosmic rays') 
+    ncosmicrays = long(strmid(line1,lo+11,hi-lo-12))
+    qastr.ncosmicrays = ncosmicrays
+  endif
+  ; processCcdDecam.calibrate.astrometry: Matched and fit WCS in 3 iterations; found 27 matches with scatter = 0.240 +- 0.129 arcsec
+  wcsrmsind = where(stregex(loglines,'^processCcdDecam.calibrate.astrometry: Matched and fit WCS',/boolean) eq 1,nwcsrmsind)
+  if nwcsrmsind gt 0 then begin
+    line1 = loglines[wcsrmsind[0]]  ; there are normally two of these
+    dum = strsplit(line1,' ',/extract)
+    lo = strpos(line1,'scatter = ')
+    hi = strpos(line1,'+-') 
+    wcsrms = float(strmid(line1,lo+10,hi-lo-11))
+    qastr.wcsrms = wcsrms
+  endif
+  ; processCcdDecam.detection: Detected 3462 positive sources to 5 sigma.
+  ndetectedind = where(stregex(loglines,'^processCcdDecam.detection: Detected ',/boolean) eq 1,ndetectedind)
+  if ndetectedind gt 0 then begin
+    line1 = loglines[ndetectedind[0]]
+    dum = strsplit(line1,' ',/extract)
+    lo = strpos(line1,'Detected')
+    hi = strpos(line1,'positive') 
+    ndetected = long(strmid(line1,lo+9,hi-lo-10))
+    qastr.ndetected = ndetected
+  endif
+  ; processCcdDecam.deblend: Deblended: of 3462 sources, 435 were deblended, creating 1850 children, total 5312 sources
+  deblendind = where(stregex(loglines,'^processCcdDecam.deblend: Deblended: ',/boolean) eq 1,ndeblendind)
+  if ndeblendind gt 0 then begin
+    line1 = loglines[deblendind[0]]
+    dum = strsplit(line1,' ',/extract)
+    lo = strpos(line1,'sources,')
+    hi = strpos(line1,'were deblended') 
+    ndeblended = long(strmid(line1,lo+9,hi-lo-10))
+    qastr.ndeblended = ndeblended
+  endif
+  
+endif   
+
 ; Save qastr
-qadir = datarepodir+'/'+visit+'/qa/'
-if file_test(qadir,/directory) eq 0 then file_mkdir,qadir
-qafile = qadir+'qa-'+visit+'_'+ccdnum+'.fits'
 print,'Saving QA structure to ',qafile
 mwrfits,qastr,qafile,/create
 

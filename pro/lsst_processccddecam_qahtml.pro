@@ -24,7 +24,7 @@ LSST_PUSH,hlines,'<center>'
 LSST_PUSH,hlines,'<table border=1>'
 
 ; NEED LINKS TO VISIT-SPECIFIC HTML PAGES
-   
+
 LSST_PUSH,hlines,'<tr><td><b>Visit</b></td>'
 for j=0,nvisit-1 do LSST_PUSH,hlines,'<td><center><b><a href="'+datarepodir+'html/'+thisprog+'_'+visitinfo[j].visit+'.html">'+visitinfo[j].visit+'</a></b></center></td>'
 LSST_PUSH,hlines,'</tr>'
@@ -70,7 +70,10 @@ for j=0,nvisit-1 do LSST_PUSH,hlines,'<td><center>'+strtrim(visitinfo[j].nsucces
 LSST_PUSH,hlines,'</tr>'
 ; Number of failed CCDs
 LSST_PUSH,hlines,'<tr><td><b>Nfailed</b></td>'
-for j=0,nvisit-1 do LSST_PUSH,hlines,'<td><center>'+strtrim(visitinfo[j].nfailed,2)+'</center></td>'
+for j=0,nvisit-1 do begin
+  if visitinfo[j].nfailed gt 0 then color='#FF0000' else color='#00FF00'
+  LSST_PUSH,hlines,'<td bgcolor='+color+'><center>'+strtrim(visitinfo[j].nfailed,2)+'</center></td>'
+endfor
 LSST_PUSH,hlines,'</tr>'
 ; Nsources
 LSST_PUSH,hlines,'<tr><td><b>Nsources</b></td>'
@@ -98,6 +101,9 @@ lsst_printlog,logfile,'Writing ',htmlfile
 For i=0,nvisit-1 do begin
   ind = where(info.visit eq visitinfo[i].visit,nind)
   info1 = info[ind]
+
+; ADD LINKS TO SCRIPTFILE, LOGFILE AND CONFIGFILE
+; astrometric accuracy, and other metrics spit out in the logfile
   
   lsst_undefine,hlines
   LSST_PUSH,hlines,'<html>'
@@ -194,41 +200,79 @@ For i=0,nvisit-1 do begin
     LSST_PUSH,hlines,'<td bgcolor='+color+'><center><b>'+info1[l].ccdnum+'</b></center></td>'
   end
   LSST_PUSH,hlines,'</tr>'
+  ; Script file
+  LSST_PUSH,hlines,'<tr><td><b>Script file</b></td>'
+  for l=0,nind-1 do LSST_PUSH,hlines,'<td><center><a href="'+info1[l].scriptfile+'">'+file_basename(info1[l].scriptfile)+'</a></center></td>'
+  LSST_PUSH,hlines,'</tr>'
+  ; Log file
+  LSST_PUSH,hlines,'<tr><td><b>Log file</b></td>'
+  for l=0,nind-1 do LSST_PUSH,hlines,'<td><center><a href="'+info1[l].logfile+'">'+file_basename(info1[l].logfile)+'</a></center></td>'
+  LSST_PUSH,hlines,'</tr>'
+  ; User config file
+  LSST_PUSH,hlines,'<tr><td><b>User config file</b></td>'
+  for l=0,nind-1 do begin
+     if info1[l].userconfigfile eq '' then LSST_PUSH,hlines,'<td><center>None</center></td>'else $
+     LSST_PUSH,hlines,'<td><center><a href="'+info1[l].userconfigfile+'">'+file_basename(info1[l].userconfigfile)+'</a></center></td>'
+  endfor
+  LSST_PUSH,hlines,'</tr>'
+  ; Final config file
+  LSST_PUSH,hlines,'<tr><td><b>Final config file</b></td>'
+  for l=0,nind-1 do LSST_PUSH,hlines,'<td><center><a href="'+info1[l].finalconfigfile+'">'+file_basename(info1[l].finalconfigfile)+'</a></center></td>'
+  LSST_PUSH,hlines,'</tr>'
   ; Duration
   LSST_PUSH,hlines,'<tr><td><b>ProcessingTime</b></td>'
   for l=0,nind-1 do begin
-    LSST_PUSH,hlines,'<td><center>'+strtrim(string(info1[l].duration,format='(F10.1)'),2)+'</center></td>'
+     LSST_PUSH,hlines,'<td><center>'+strtrim(string(info1[l].duration,format='(F10.1)'),2)+'</center></td>'
   endfor
   LSST_PUSH,hlines,'</tr>'
   ; Image Size
   LSST_PUSH,hlines,'<tr><td><b>Image Size</b></td>'
   for l=0,nind-1 do begin
+    if file_test(info1[l].calexpfile) eq 0 then LSST_PUSH,hlines,'<td><center>--</center></td>' else $
     LSST_PUSH,hlines,'<td><center>'+strtrim(info1[l].nx,2)+'x'+strtrim(info1[l].ny,2)+'</center></td>'
   end
   LSST_PUSH,hlines,'</tr>'
   ; Filter
   LSST_PUSH,hlines,'<tr><td><b>Filter</b></td>'
-  for l=0,nind-1 do LSST_PUSH,hlines,'<td><center>'+info1[l].filter+'</center></td>'
+  for l=0,nind-1 do begin
+    if file_test(info1[l].calexpfile) eq 0 then LSST_PUSH,hlines,'<td><center>--</center></td>' else $
+    LSST_PUSH,hlines,'<td><center>'+info1[l].filter+'</center></td>'
+  endfor
   LSST_PUSH,hlines,'</tr>'
   ; Exptime
   LSST_PUSH,hlines,'<tr><td><b>Exptime</b></td>'
-  for l=0,nind-1 do LSST_PUSH,hlines,'<td><center>'+strtrim(string(info1[l].exptime,format='(F10.2)'),2)+'</center></td>'
+  for l=0,nind-1 do begin
+    if file_test(info1[l].calexpfile) eq 0 then LSST_PUSH,hlines,'<td><center>--</center></td>' else $
+    LSST_PUSH,hlines,'<td><center>'+strtrim(string(info1[l].exptime,format='(F10.2)'),2)+'</center></td>'
+  endfor
   LSST_PUSH,hlines,'</tr>'
   ; Date
   LSST_PUSH,hlines,'<tr><td><b>Date</b></td>'
-  for l=0,nind-1 do LSST_PUSH,hlines,'<td><center>'+info1[l].dateobs+'</center></td>'
+  for l=0,nind-1 do begin
+    if file_test(info1[l].calexpfile) eq 0 then LSST_PUSH,hlines,'<td><center>--</center></td>' else $
+    LSST_PUSH,hlines,'<td><center>'+info1[l].dateobs+'</center></td>'
+  endfor
   LSST_PUSH,hlines,'</tr>'
   ; Airmass
   LSST_PUSH,hlines,'<tr><td><b>Airmass</b></td>'
-  for l=0,nind-1 do LSST_PUSH,hlines,'<td><center>'+strtrim(info1[l].airmass,2)+'</center></td>'
+  for l=0,nind-1 do begin
+    if file_test(info1[l].calexpfile) eq 0 then LSST_PUSH,hlines,'<td><center>--</center></td>' else $
+    LSST_PUSH,hlines,'<td><center>'+strtrim(info1[l].airmass,2)+'</center></td>'
+  endfor
   LSST_PUSH,hlines,'</tr>'
   ; RA
   LSST_PUSH,hlines,'<tr><td><b>RA</b></td>'
-  for l=0,nind-1 do LSST_PUSH,hlines,'<td><center>'+ten2sexig(info1[l].ra/15.0)+'</center></td>'
+  for l=0,nind-1 do begin
+    if file_test(info1[l].calexpfile) eq 0 then LSST_PUSH,hlines,'<td><center>--</center></td>' else $
+    LSST_PUSH,hlines,'<td><center>'+ten2sexig(info1[l].ra/15.0)+'</center></td>'
+  endfor
   LSST_PUSH,hlines,'</tr>'
   ; DEC
   LSST_PUSH,hlines,'<tr><td><b>DEC</b></td>'
-  for l=0,nind-1 do LSST_PUSH,hlines,'<td><center>'+ten2sexig(info1[l].dec)+'</center></td>'
+  for l=0,nind-1 do begin
+    if file_test(info1[l].calexpfile) eq 0 then LSST_PUSH,hlines,'<td><center>--</center></td>' else $
+    LSST_PUSH,hlines,'<td><center>'+ten2sexig(info1[l].dec)+'</center></td>'
+  endfor
   LSST_PUSH,hlines,'</tr>'
   ;; PSF Chi
   ;LSST_PUSH,hlines,'<tr><td><b>PSF Chi</b></td>'
@@ -236,30 +280,94 @@ For i=0,nvisit-1 do begin
   ;LSST_PUSH,hlines,'</tr>'
   ; FWHM
   LSST_PUSH,hlines,'<tr><td><b>FWHM</b></td>'
-  for l=0,nind-1 do LSST_PUSH,hlines,'<td><center>'+strtrim(string(info1[l].fwhm,format='(F10.2)'),2)+'</center></td>'
+  for l=0,nind-1 do begin
+    if file_test(info1[l].calexpfile) eq 0 then LSST_PUSH,hlines,'<td><center>--</center></td>' else $
+    LSST_PUSH,hlines,'<td><center>'+strtrim(string(info1[l].fwhm,format='(F10.2)'),2)+'</center></td>'
+  endfor
   LSST_PUSH,hlines,'</tr>'
   ; Fluxmag0
   LSST_PUSH,hlines,'<tr><td><b>Fluxmag0</b></td>'
-  for l=0,nind-1 do LSST_PUSH,hlines,'<td><center>'+strtrim(info1[l].fluxmag0,2)+'</center></td>'
+  for l=0,nind-1 do begin
+    if file_test(info1[l].calexpfile) eq 0 then LSST_PUSH,hlines,'<td><center>--</center></td>' else $    
+    LSST_PUSH,hlines,'<td><center>'+strtrim(info1[l].fluxmag0,2)+'</center></td>'
+  endfor
   LSST_PUSH,hlines,'</tr>'
   ; Medbackground
   LSST_PUSH,hlines,'<tr><td><b>MedBackground</b></td>'
-  for l=0,nind-1 do LSST_PUSH,hlines,'<td><center>'+strtrim(string(info1[l].medbackground,format='(F10.2)'),2)+'</center></td>'
+  for l=0,nind-1 do begin
+    if file_test(info1[l].calexpfile) eq 0 then LSST_PUSH,hlines,'<td><center>--</center></td>' else $
+    LSST_PUSH,hlines,'<td><center>'+strtrim(string(info1[l].medbackground,format='(F10.2)'),2)+'</center></td>'
+  endfor
   LSST_PUSH,hlines,'</tr>'
   ; Sigbackground
   LSST_PUSH,hlines,'<tr><td><b>SigBackground</b></td>'
-  for l=0,nind-1 do LSST_PUSH,hlines,'<td><center>'+strtrim(string(info1[l].sigbackground,format='(F10.2)'),2)+'</center></td>'
+  for l=0,nind-1 do begin
+    if file_test(info1[l].calexpfile) eq 0 then LSST_PUSH,hlines,'<td><center>--</center></td>' else $
+    LSST_PUSH,hlines,'<td><center>'+strtrim(string(info1[l].sigbackground,format='(F10.2)'),2)+'</center></td>'
+  endfor
   LSST_PUSH,hlines,'</tr>'
   ; Nsources
   LSST_PUSH,hlines,'<tr><td><b>Nsources</b></td>'
-  for l=0,nind-1 do LSST_PUSH,hlines,'<td><center>'+strtrim(info1[l].nsources,2)+'</center></td>'
+  for l=0,nind-1 do begin
+    if info1[l].nsources eq -1 then LSST_PUSH,hlines,'<td><center>--</center></td>' else $
+    LSST_PUSH,hlines,'<td><center>'+strtrim(info1[l].nsources,2)+'</center></td>'
+  endfor
+  LSST_PUSH,hlines,'</tr>'
+  ; InitPSFFWHM
+  LSST_PUSH,hlines,'<tr><td><b>InitPSFFWHM</b></td>'
+  for l=0,nind-1 do begin
+    if info1[l].initpsffwhm eq -1 then LSST_PUSH,hlines,'<td><center>--</center></td>' else $
+    LSST_PUSH,hlines,'<td><center>'+strtrim(string(info1[l].initpsffwhm,format='(F10.2)'),2)+'</center></td>'
+  endfor
+  LSST_PUSH,hlines,'</tr>'
+  ; Npsfstars_selected
+  LSST_PUSH,hlines,'<tr><td><b>NPSFstarselected</b></td>'
+  for l=0,nind-1 do begin
+    if info1[l].npsfstars_selected eq -1 then LSST_PUSH,hlines,'<td><center>--</center></td>' else $
+    LSST_PUSH,hlines,'<td><center>'+strtrim(info1[l].npsfstars_selected,2)+'</center></td>'
+  endfor
+  LSST_PUSH,hlines,'</tr>'
+  ; Npsfstars_used
+  LSST_PUSH,hlines,'<tr><td><b>NPSFstarsused</b></td>'
+  for l=0,nind-1 do begin
+    if info1[l].npsfstars_used eq -1 then LSST_PUSH,hlines,'<td><center>--</center></td>' else $
+    LSST_PUSH,hlines,'<td><center>'+strtrim(info1[l].npsfstars_used,2)+'</center></td>'
+  endfor
+  LSST_PUSH,hlines,'</tr>'
+  ; Ncosmicrays
+  LSST_PUSH,hlines,'<tr><td><b>Ncosmicrays</b></td>'
+  for l=0,nind-1 do begin
+    if info1[l].ncosmicrays eq -1 then LSST_PUSH,hlines,'<td><center>--</center></td>' else $
+    LSST_PUSH,hlines,'<td><center>'+strtrim(info1[l].ncosmicrays,2)+'</center></td>'
+  endfor
+  LSST_PUSH,hlines,'</tr>'
+  ; wcsrms
+  LSST_PUSH,hlines,'<tr><td><b>WCSrms</b></td>'
+  for l=0,nind-1 do begin
+    if info1[l].wcsrms eq -1 then LSST_PUSH,hlines,'<td><center>--</center></td>' else $
+    LSST_PUSH,hlines,'<td><center>'+strtrim(string(info1[l].wcsrms,format='(F10.2)'),2)+'</center></td>'
+  endfor
+  LSST_PUSH,hlines,'</tr>'
+  ; Ndetected
+  LSST_PUSH,hlines,'<tr><td><b>Ndetected</b></td>'
+  for l=0,nind-1 do begin
+    if info1[l].ndetected eq -1 then LSST_PUSH,hlines,'<td><center>--</center></td>' else $
+    LSST_PUSH,hlines,'<td><center>'+strtrim(info1[l].ndetected,2)+'</center></td>'
+  endfor
+  LSST_PUSH,hlines,'</tr>'
+  ; Ndeblended
+  LSST_PUSH,hlines,'<tr><td><b>Ndeblended</b></td>'
+  for l=0,nind-1 do begin
+    if info1[l].ndeblended eq -1 then LSST_PUSH,hlines,'<td><center>--</center></td>' else $
+    LSST_PUSH,hlines,'<td><center>'+strtrim(info1[l].ndeblended,2)+'</center></td>'
+  endfor
   LSST_PUSH,hlines,'</tr>'
   ; Image
   LSST_PUSH,hlines,'<tr><td><b>Image</b></td>'
   for l=0,nind-1 do begin
     LSST_PUSH,hlines,'<td><center><a href="'+info1[l].calexp_plotfile+'"><img src="'+info1[l].calexp_plotfile+$
                 '" height=250></a></center></td>'
-  end
+  endfor
   LSST_PUSH,hlines,'</tr>'
   ;; Histogram
   ;LSST_PUSH,hlines,'<tr><td><b>ALS Histogram</b></td>'
@@ -273,7 +381,7 @@ For i=0,nvisit-1 do begin
   for l=0,nind-1 do begin
     LSST_PUSH,hlines,'<td><center><a href="'+info1[l].src_plotfile+'"><img src="'+info1[l].src_plotfile+$
                 '" height=250></a></center></td>'
-  end
+  endfor
   LSST_PUSH,hlines,'</tr>'
   ;; Chi vs. Sharp plot
   ;LSST_PUSH,hlines,'<tr><td><b>ALS Chi vs. Sharp</b></td>'
