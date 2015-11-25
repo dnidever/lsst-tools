@@ -79,6 +79,9 @@ LSST_PUSH,hlines,'</tr>'
 LSST_PUSH,hlines,'<tr><td><b>Nsources</b></td>'
 for j=0,nvisit-1 do LSST_PUSH,hlines,'<td><center>'+strtrim(visitinfo[j].nsources,2)+'</center></td>'
 LSST_PUSH,hlines,'</tr>'
+; Total processing time
+LSST_PUSH,hlines,'<tr><td><b>ProcessingTime</b></td>'
+for j=0,nvisit-1 do LSST_PUSH,hlines,'<td><center>'+strtrim(visitinfo[j].duration,2)+'</center></td>'
 LSST_PUSH,hlines,'</tr>'
 LSST_PUSH,hlines,'</table>'
 LSST_PUSH,hlines,''
@@ -92,7 +95,6 @@ htmlfile = datarepodir+'html/'+thisprog+'.html'
 WRITELINE,htmlfile,hlines
 FILE_CHMOD,htmlfile,'755'o
 lsst_printlog,logfile,'Writing ',htmlfile
-
 
 
 ;--------------------------------
@@ -199,6 +201,10 @@ For i=0,nvisit-1 do begin
     if info1[l].success eq 0 then color='#FF0000' else color='#00FF00'
     LSST_PUSH,hlines,'<td bgcolor='+color+'><center><b>'+info1[l].ccdnum+'</b></center></td>'
   end
+  LSST_PUSH,hlines,'</tr>'
+  ; Processing timesample
+  LSST_PUSH,hlines,'<tr><td><b>Processing Timestampe</b></td>'
+  for l=0,nind-1 do LSST_PUSH,hlines,'<td><center>'+systime(0,info1[l].runtimestamp)+'</center></td>'
   LSST_PUSH,hlines,'</tr>'
   ; Script file
   LSST_PUSH,hlines,'<tr><td><b>Script file</b></td>'

@@ -15,7 +15,7 @@ qafile = qadir+thisprog+'QA-'+visit+'_'+ccdnum+'.fits'
 if file_test(qafile) then file_delete,qafile,/allow  ; erase old version
 
 ; Initialize the QA structure
-qastr = {datarepodir:'',visit:'',ccdnum:'',scriptfile:'',logfile:'',userconfigfile:'',finalconfigfile:'',$
+qastr = {datarepodir:'',visit:'',ccdnum:'',runtimestamp:-1LL,scriptfile:'',logfile:'',userconfigfile:'',finalconfigfile:'',$
          success:0,duration:-1.0,ra:-1.0d0,dec:-1.0d0,dateobs:'',airmass:'',$
          filter:'',exptime:-1.0,fwhm:-1.0,fluxmag0:-1.0,calexpfile:'',nx:-1L,ny:-1L,$
          medbackground:-1.0,sigbackground:-1.0,srcfile:'',nsources:-1L,calexp_plotfile:'',src_plotfile:'',$
@@ -25,7 +25,11 @@ qastr.visit = visit[0]
 qastr.ccdnum = ccdnum[0]
 scriptfile = datarepodir+'/'+visit+'/calexp/processCcdDecam-'+visit+'_'+ccdnum+'.sh'
 logfile = datarepodir+'/'+visit+'/calexp/processCcdDecam-'+visit+'_'+ccdnum+'.sh.log'
-if file_test(scriptfile) then qastr.scriptfile=scriptfile
+if file_test(scriptfile) then begin
+  qastr.scriptfile=scriptfile
+  scriptinfo = file_info(scriptfile)
+  qastr.runtimestamp = scriptinfo.mtime
+endif
 if file_test(logfile) then qastr.logfile=logfile
 ; duration in sec
 if file_test(scriptfile) and file_test(logfile) then begin

@@ -1,23 +1,23 @@
 ;+
 ;
-; LSST_PROCESSCCDDECAM
+; LSST_MAKECOADDTEMPEXP
 ;
-; This is a wrapper around the LSST processCcdDecam command.
+; This is a wrapper around the LSST makeCoaddTempExp command.
 ;
 ; INPUTS:
 ;  /redo Redo files that were already done.
 ;  /stp  Stop at the end of the program.
 ;
 ; OUTPUTS:
-;  Calibrated images for each visit/ccdnum.
+;  Warped visit images for each patch
 ;
 ; By D.Nidever  Nov 2015
 ;-
-pro lsst_processccddecam,redo=redo,error=error,stp=stp
+pro lsst_makeCoaddTempExp,redo=redo,error=error,stp=stp
 
 COMMON lsst,setup
 
-thisprog = 'processCcdDecam'
+thisprog = 'makeCoaddTempExp'
 
 CD,current=curdir
 
