@@ -124,15 +124,15 @@ LSST_READLIST,inputfile,inputlines,/unique,count=ninputlines,logfile=logfile,/si
 lsst_printlog,logfile,strtrim(ninputlines,2),' files in '+upthisprog+'.inlist'
 
 ; Load the output list
-LSST_READLIST,outputfile,outputlines,/unique,/fully,count=noutputlines,logfile=logfile,/silent
+LSST_READLIST,outputfile,outputlines,/unique,count=noutputlines,logfile=logfile,/silent
 lsst_printlog,logfile,strtrim(noutputlines,2),' files in '+upthisprog+'.outlist'
 
 ; Load the success list
-LSST_READLIST,successfile,successlines,/unique,/fully,count=nsuccesslines,logfile=logfile,/silent
+LSST_READLIST,successfile,successlines,/unique,count=nsuccesslines,logfile=logfile,/silent
 lsst_printlog,logfile,strtrim(nsuccesslines,2),' files in '+upthisprog+'.success'
 
 ; Load the failure list
-LSST_READLIST,failurefile,failurelines,/unique,/fully,count=nfailurelines,logfile=logfile,/silent
+LSST_READLIST,failurefile,failurelines,/unique,count=nfailurelines,logfile=logfile,/silent
 lsst_printlog,logfile,strtrim(nfailurelines,2),' files in '+upthisprog+'.failure'
 
 

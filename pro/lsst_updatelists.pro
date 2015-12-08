@@ -105,7 +105,7 @@ endif
 
 
 ; Inputlines
-undefine,inputlines
+lsst_undefine,inputlines
 ninputlines = lists.ninputlines
 if (ninputlines) gt 0 then inputlines=lists.inputlines
 
@@ -118,7 +118,7 @@ if not keyword_set(silent) then $
 if (nsuccesslist gt 0) then begin
 
   ; Adding to the OLD successlist
-  undefine,oldsuccesslines,newsuccesslines
+  lsst_undefine,oldsuccesslines,newsuccesslines
   if (lists.nsuccesslines gt 0) then oldsuccesslines = lists.successlines
   PUSH,newsuccesslines,oldsuccesslines
   PUSH,newsuccesslines,successlist
@@ -144,7 +144,7 @@ noutlist = n_elements(outlist)
 if (noutlist gt 0) then begin
 
   ; Adding to the OLD outlist
-  undefine,oldoutputlines,newoutputlines
+  lsst_undefine,oldoutputlines,newoutputlines
   if (lists.noutputlines gt 0) then oldoutputlines = lists.outputlines
   PUSH,newoutputlines,oldoutputlines
   PUSH,newoutputlines,outlist
@@ -218,7 +218,7 @@ endif
 if (nfailurelist gt 0) or (remnewsuccess eq 1) then begin
 
   ; Adding to the OLD failure list
-  undefine,oldfailurelines,newfailurelines
+  lsst_undefine,oldfailurelines,newfailurelines
   if (lists.nfailurelines gt 0) then oldfailurelines = lists.failurelines
   PUSH,newfailurelines,oldfailurelines
   PUSH,newfailurelines,failurelist
@@ -235,7 +235,7 @@ if (nfailurelist gt 0) or (remnewsuccess eq 1) then begin
 
     if (nind1 gt 0) then begin
       if nind1 lt nnewfailurelines then REMOVE,ind1,newfailurelines
-      if nind1 eq nnewfailurelines then undefine,newfailurelines
+      if nind1 eq nnewfailurelines then lsst_undefine,newfailurelines
       nnewfailurelines = n_elements(newfailurelines)
     endif
   endif ; some successful files

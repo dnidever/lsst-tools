@@ -156,6 +156,9 @@ sch_files = file_search(datarepodir+'schema/*',count=nsch_files)
 if nsch_files gt 0 then file_delete,sch_files,/allow
 lsst_printlog,logfile,'Cleaning schema/ directory'
 
+; SAVE THE EUPS VERSION LIST OF ALL THE PACKAGES
+;  maybe put it in config/ as processCcdDecam.eupslist.log or something.
+
 ; MAKE SURE THAT THE APPROPRIATE STACK PRODUCTS ARE SETUP WITH EUPS!!!
 
 
@@ -448,7 +451,7 @@ if keyword_set(doqa) then begin
      endfor
    endelse
    nqalist = n_elements(qalist)
-   
+  
    ; use job_daemon as well to parallelize
    cmd = "lsst_processccddecam_qa,'"+datarepodir+"','"+qalist.visit+"','"+qalist.ccdnum+"'"
    ; Directory list,  datarepo/visitid/calexp/
@@ -468,11 +471,11 @@ if keyword_set(doqa) then begin
                      success:0,duration:-1.0,ra:-1.0d0,dec:-1.0d0,dateobs:'',airmass:'',$
                      filter:'',exptime:-1.0,fwhm:-1.0,fluxmag0:-1.0,calexpfile:'',nx:-1L,ny:-1L,$
                      medbackground:-1.0,sigbackground:-1.0,srcfile:'',nsources:-1L,calexp_plotfile:'',src_plotfile:'',$
-                     initpsffwhm:-1.0,npsfstars_selected:-1L,npsfstars_used:-1L,ncosmicrays:-1L,wcsrms:-1.0,ndetected:-1L,ndeblended:-1L},ninputs)
+                     initpsffwhm:-1.0,npsfstars_selected:-1L,npsfstars_used:-1L,ncosmicrays:-1L,wcsrms:-1.0,ndetected:-1L,ndeblended:-1L},nqalist)
    info.visit = qalist.visit
    info.ccdnum = qalist.ccdnum
    info.success = qalist.success
-   for i=0,ninputs-1 do begin
+   for i=0,nqalist-1 do begin
       qafile = datarepodir+'/'+info[i].visit+'/qa/'+thisprog+'QA-'+info[i].visit+'_'+info[i].ccdnum+'.fits'
       if file_test(qafile) then begin
         info[i].success = 1

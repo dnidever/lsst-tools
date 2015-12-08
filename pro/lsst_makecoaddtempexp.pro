@@ -168,41 +168,6 @@ lsst_printlog,logfile,'Cleaning schema/ directory'
 lists = LSST_GETINPUT(thisprog,stages,logsdir=logsdir,redo=redo)
 ninputlines = lists.ninputlines
 
-; If nothing in the INLIST create it from the registry
-if ninputlines eq 0 then begin
-
-  lsst_printlog,logfile,'No files in the INLIST.  Checking the registry database'
-
-  ; Getting visits from the registry
-  tempfile = maketemp('reg')
-  spawn,'sqlite3 -header registry.sqlite3 "SELECT * from raw;" >> '+tempfile,out,errout
-  reg = importascii(tempfile,/header,delimit='|',/silent)
-  file_delete,tempfile,/allow
-  ;spawn,'echo "select * from raw_visit;" | sqlite3 '+datarepodir+'/registry.sqlite3',out,errour
-  ;176837|2013-02-10|z
-  ;176838|2013-02-10|z
-  ;177071|2013-02-11|i
-  ;177072|2013-02-11|i
-  ;arr = strsplitter(out,'|',/extract)
-  ;visits = strtrim(reform(arr[0,*]),2)
-  ;nvisits = n_elements(visits)
-
-  ; Create a unique ccd-level name VISITS[CCDNUM]
-  ;  should really use "exposures.instcal.template" in the
-  ;  mapper file for this
-  visitccd = string(reg.visit,format='(i07)')+'['+string(reg.ccdnum,format='(i02)')+']'
-  nvisitccd = n_elements(visitccd)
-  
-  inputfile = logsdir+strupcase(thisprog)+'.inlist'
-  lsst_printlog,logfile,'Adding '+strtrim(nvisitccd,2)+' chip to INLIST'
-  WRITELINE,inputfile,visitccd
-  
-  ; Get inputs again
-  lists = LSST_GETINPUT(thisprog,stages,logsdir=logsdir,redo=redo)
-  ninputlines = lists.ninputlines
-endif
-
-
 ; No files to process
 ;---------------------
 if ninputlines eq 0 then begin
@@ -210,6 +175,12 @@ if ninputlines eq 0 then begin
   lsst_printlog,logfile,error
   return
 endif
+
+; We run makeCoaddTempExp for each patch and visit (NOT ccdnum)
+; get unique visits
+
+; I think we need to run "reportPatches" or some script like that
+; that will tell us what visits overlap which patches.
 
 ; Getting the inputs and parsing into visit and ccdnum
 inputlines = lists.inputlines

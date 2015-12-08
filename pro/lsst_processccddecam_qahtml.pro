@@ -9,6 +9,8 @@ thisprog = 'processCcdDecam'
 
 nvisit = n_elements(visitinfo)
 
+lendatarepo = strlen(file_expand_path(datarepodir))
+
 ; Create visits summary page
 ;-----------------------------
 lsst_undefine,hlines
@@ -26,7 +28,7 @@ LSST_PUSH,hlines,'<table border=1>'
 ; NEED LINKS TO VISIT-SPECIFIC HTML PAGES
 
 LSST_PUSH,hlines,'<tr><td><b>Visit</b></td>'
-for j=0,nvisit-1 do LSST_PUSH,hlines,'<td><center><b><a href="'+datarepodir+'html/'+thisprog+'_'+visitinfo[j].visit+'.html">'+visitinfo[j].visit+'</a></b></center></td>'
+for j=0,nvisit-1 do LSST_PUSH,hlines,'<td><center><b><a href="'+thisprog+'_'+visitinfo[j].visit+'.html">'+visitinfo[j].visit+'</a></b></center></td>'
 LSST_PUSH,hlines,'</tr>'
 ; Date
 LSST_PUSH,hlines,'<tr><td><b>Date-Obs</b></td>'
@@ -208,22 +210,36 @@ For i=0,nvisit-1 do begin
   LSST_PUSH,hlines,'</tr>'
   ; Script file
   LSST_PUSH,hlines,'<tr><td><b>Script file</b></td>'
-  for l=0,nind-1 do LSST_PUSH,hlines,'<td><center><a href="'+info1[l].scriptfile+'">'+file_basename(info1[l].scriptfile)+'</a></center></td>'
+  for l=0,nind-1 do begin
+    scriptfile = file_expand_path(info1[l].scriptfile)
+    scriptfile = strmid(scriptfile,lendatarepo+1)  ; make it a relative filename
+    LSST_PUSH,hlines,'<td><center><a href="../'+scriptfile+'">'+file_basename(scriptfile)+'</a></center></td>'
+  endfor
   LSST_PUSH,hlines,'</tr>'
   ; Log file
   LSST_PUSH,hlines,'<tr><td><b>Log file</b></td>'
-  for l=0,nind-1 do LSST_PUSH,hlines,'<td><center><a href="'+info1[l].logfile+'">'+file_basename(info1[l].logfile)+'</a></center></td>'
+  for l=0,nind-1 do begin
+    logfile = file_expand_path(info1[l].logfile)
+    logfile = strmid(logfile,lendatarepo+1)   ; make it a relative filename
+    LSST_PUSH,hlines,'<td><center><a href="../'+logfile+'">'+file_basename(info1[l].logfile)+'</a></center></td>'
+  endfor
   LSST_PUSH,hlines,'</tr>'
   ; User config file
   LSST_PUSH,hlines,'<tr><td><b>User config file</b></td>'
   for l=0,nind-1 do begin
-     if info1[l].userconfigfile eq '' then LSST_PUSH,hlines,'<td><center>None</center></td>'else $
-     LSST_PUSH,hlines,'<td><center><a href="'+info1[l].userconfigfile+'">'+file_basename(info1[l].userconfigfile)+'</a></center></td>'
+    if info1[l].userconfigfile eq '' then LSST_PUSH,hlines,'<td><center>None</center></td>'else $
+    userconfigfile = file_expand_path(info1[l].userconfigfile)
+    userconfigfile = strmid(userconfigfile,lendatarepo+1)
+    LSST_PUSH,hlines,'<td><center><a href="../'+userconfigfile+'">'+file_basename(info1[l].userconfigfile)+'</a></center></td>'
   endfor
   LSST_PUSH,hlines,'</tr>'
   ; Final config file
   LSST_PUSH,hlines,'<tr><td><b>Final config file</b></td>'
-  for l=0,nind-1 do LSST_PUSH,hlines,'<td><center><a href="'+info1[l].finalconfigfile+'">'+file_basename(info1[l].finalconfigfile)+'</a></center></td>'
+  for l=0,nind-1 do begin
+    finalconfigfile = file_expand_path(info1[l].finalconfigfile)
+    finalconfigfile = strmid(finalconfigfile,lendatarepo+1)  ; make it a relative filename
+     LSST_PUSH,hlines,'<td><center><a href="../'+finalconfigfile+'">'+file_basename(info1[l].finalconfigfile)+'</a></center></td>'
+  endfor
   LSST_PUSH,hlines,'</tr>'
   ; Duration
   LSST_PUSH,hlines,'<tr><td><b>ProcessingTime</b></td>'
@@ -371,7 +387,9 @@ For i=0,nvisit-1 do begin
   ; Image
   LSST_PUSH,hlines,'<tr><td><b>Image</b></td>'
   for l=0,nind-1 do begin
-    LSST_PUSH,hlines,'<td><center><a href="'+info1[l].calexp_plotfile+'"><img src="'+info1[l].calexp_plotfile+$
+    calexp_plotfile = file_expand_path(info1[l].calexp_plotfile)
+    calexp_plotfile = strmid(calexp_plotfile,lendatarepo+1)  ; make it a relative filename 
+    LSST_PUSH,hlines,'<td><center><a href="../'+calexp_plotfile+'"><img src="../'+calexp_plotfile+$
                 '" height=250></a></center></td>'
   endfor
   LSST_PUSH,hlines,'</tr>'
@@ -385,7 +403,9 @@ For i=0,nvisit-1 do begin
   ; FluxErr vs. Flux plot
   LSST_PUSH,hlines,'<tr><td><b>FluxErr vs. Flux</b></td>'
   for l=0,nind-1 do begin
-    LSST_PUSH,hlines,'<td><center><a href="'+info1[l].src_plotfile+'"><img src="'+info1[l].src_plotfile+$
+    src_plotfile = file_expand_path(info1[l].src_plotfile)
+    src_plotfile = strmid(src_plotfile,lendatarepo+1)  ; make it a relative filename 
+    LSST_PUSH,hlines,'<td><center><a href="../'+src_plotfile+'"><img src="../'+src_plotfile+$
                 '" height=250></a></center></td>'
   endfor
   LSST_PUSH,hlines,'</tr>'
