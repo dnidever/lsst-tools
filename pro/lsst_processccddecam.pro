@@ -430,7 +430,8 @@ if keyword_set(doqa) then begin
      ; Get success and failure lists
      lsst_undefine,qalist
      sfile = logsdir+strupcase(thisprog)+'.success'
-     if file_test(sfile) then begin
+     sinfo = file_info(sfile)
+     if sinfo.exists eq 1 and sinfo.size gt 0 then begin
        LSST_READLIST,sfile,slines,/unique,count=scount
        qalist1 = replicate({input:'',visit:'',ccdnum:'',success:1},scount)
        qalist1.input = slines
