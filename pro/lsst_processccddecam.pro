@@ -367,14 +367,15 @@ for i=0,n_elements(jobstr)-1 do begin
   ; run of the same command
   
   ; Check the log file for errors
-  if file_test(jobstr[i].logfile) eq 1 then begin
+  loginfo = file_info(jobstr[i].logfile)
+  if loginfo.exists eq 1 and loginfo.size gt 0 then begin
     LSST_READLINE,jobstr[i].logfile,loglines,count=nloglines
     traceback_ind = where(stregex(loglines,'^Traceback',/boolean) eq 1,ntraceback)
     if ntraceback gt 0 then begin
       lastline = loglines[nloglines-1]
       lsst_push,errors1,'Traceback error - '+lastline 
     endif
-  endif else lsst_push,errors1,'Log file '+jobstr[i].logfile+' NOT FOUND'  ; no logfile
+  endif else lsst_push,errors1,'Log file '+jobstr[i].logfile+' NOT FOUND OR EMPTY'  ; no logfile
 
   ; Failure
   if n_elements(errors1) gt 0 then begin
