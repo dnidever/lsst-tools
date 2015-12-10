@@ -52,6 +52,14 @@ if (nprogfile eq 0) then begin
   return
 endif
 
+; Check that EUPS works
+SPAWN,'which eups',out,errout
+progfile = FILE_SEARCH(out,count=nprogfile)
+if (nprogfile eq 0) then begin
+  error = 'EUPS NOT AVAILABLE'
+  print,error
+  return
+endif
 
 ; LOAD THE SETUP FILE if not passed
 ;-----------------------------------
@@ -156,8 +164,16 @@ sch_files = file_search(datarepodir+'schema/*',count=nsch_files)
 if nsch_files gt 0 then file_delete,sch_files,/allow
 lsst_printlog,logfile,'Cleaning schema/ directory'
 
-; SAVE THE EUPS VERSION LIST OF ALL THE PACKAGES
-;  maybe put it in config/ as processCcdDecam.eupslist.log or something.
+; Save EUPS versions of packages in config/
+spawn,['eups','list','--setup'],out,errout,/noshell
+if n_elements(out) gt 0 then begin
+  if file_test(datarepodir+'/config/',/directory) eq 0 then file_mkdir,datarepodir+'/config/'
+  WRITELINE,datarepodir+'/config/'+thisprog+'.eupslist.log',out
+endif else begin
+  error = 'Error getting EUPS versions of packages'
+  if not keyword_set(silent) then lsst_printlog,logfile,error
+  return
+endelse
 
 ; MAKE SURE THAT THE APPROPRIATE STACK PRODUCTS ARE SETUP WITH EUPS!!!
 
