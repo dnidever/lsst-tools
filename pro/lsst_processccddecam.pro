@@ -242,7 +242,8 @@ for i=0,ninputs-1 do begin
   visit[i] = strmid(inputlines[i],0,lo)
   ccdnum[i] = strmid(inputlines[i],lo+1,len-lo-2)
 endfor
-
+visit = string(visit,format='(i07)')  ; should get this format from the policy file
+ccdnum = string(ccdnum,format='(i02)')
 
 ; List of steps
 ; 1. figure out the files to run on
@@ -437,7 +438,7 @@ if keyword_set(doqa) then begin
    ; Use inputs for this run ONLY
    if not keyword_set(allqa) then begin
      qalist = replicate({input:'',visit:'',ccdnum:'',success:-1},ninputs)
-     qalist.input = inputlist
+     qalist.input = inputlines
      qalist.visit = visit
      qalist.ccdnum = ccdnum
      qalist.success = successarr
