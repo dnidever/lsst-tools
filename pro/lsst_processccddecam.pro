@@ -340,6 +340,8 @@ lsst_printlog,logfile,''
 ; Make commands for processCcdDecam
 cmd = thisprog+'.py '+datarepodir+' --id visit='+visit+' ccdnum='+ccdnum
 if n_elements(configfile) gt 0 then cmd+=' --configfile '+configfile
+; Add date before and after
+cmd = 'date ; '+cmd+' ; date'
 ; Directory list,  datarepo/visitid/calexp/
 dirs = datarepodir+'/'+visit+'/calexp/'
 ; Create the directories if necessary
@@ -355,7 +357,6 @@ JOB_DAEMON,cmd,dirs,jobs=jobstr,nmulti=nmulti,inpname=inpname,hyperthread=hypert
 ; return the name of the scriptfiles
 ; give them reasonable names, name of file that is being processed,
 ;     stage, data/time
-
 
 ;-------------------
 ; Checking OUTPUTS
