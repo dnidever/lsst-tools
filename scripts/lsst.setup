@@ -8,4 +8,5 @@ nmulti      10
 ##### OPTIONAL #####
 redo         0
 hyperthread  1
+nthreads     1
 cmd2cdaxes   M,M-T,M-D
