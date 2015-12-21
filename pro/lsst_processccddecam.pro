@@ -92,6 +92,15 @@ if testlogs eq 0 then FILE_MKDIR,'logs'
 logfile = logsdir+strupcase(thisprog)+'.log'    ; initialize logfile
 if file_test(logfile) eq 0 then SPAWN,'touch '+logfile,out
 
+; What architecture are we working on
+spawn,['uname'],out,errout,/noshell
+out = strtrim(out[0],2)
+case out of:
+   'Darwin': arch='mac'
+   'Linux': arch='linux'
+   else: arch='unix'
+endcase
+
 ; Redo
 doredo = LSST_READPAR(setup,'REDO')
 if keyword_set(redo) or (doredo ne '-1' and doredo ne '0') then redo=1 else redo=0
@@ -116,6 +125,10 @@ if doqa eq '0' or doqa eq '' or doqa eq '-1' then doqa=0
 ; ALLQA
 allqa = LSST_READPAR(setup,'ALLQA')
 if allqa eq '0' or allqa eq '' or allqa eq '-1' then allqa=0
+; NTHREADS
+nthreads = LSST_READPAR(setup,'NTHREADS')
+if nthreads eq '0' or nthreads eq '' or nthreads eq '-1' then nthreads=1 else nthreads=long(nthreads)>1
+
 
 ; Load the stages information
 LSST_LOADSTAGES,setup,stages,error=error
@@ -175,6 +188,8 @@ endif else begin
   return
 endelse
 
+
+   
 ; MAKE SURE THAT THE APPROPRIATE STACK PRODUCTS ARE SETUP WITH EUPS!!!
 
 
@@ -339,9 +354,12 @@ lsst_printlog,logfile,''
 
 ; Make commands for processCcdDecam
 cmd = thisprog+'.py '+datarepodir+' --id visit='+visit+' ccdnum='+ccdnum
+; add thread limit global variable
+if n_elements(nthreads) gt 0 then cmd='setenv OMP_NUM_THREADS '+strtrim(nthreads,2)+' ; '+cmd
+; add configuration file
 if n_elements(configfile) gt 0 then cmd+=' --configfile '+configfile
 ; Add date before and after
-cmd = 'date ; '+cmd+' ; date'
+;cmd = 'date ; '+cmd+' ; date'
 ; Directory list,  datarepo/visitid/calexp/
 dirs = datarepodir+'/'+visit+'/calexp/'
 ; Create the directories if necessary
@@ -531,7 +549,7 @@ if keyword_set(doqa) then begin
        visitinfo[i].filter = info[gdsuccess[0]].filter
        visitinfo[i].exptime = info[gdsuccess[0]].exptime
      endif
-     visitinfo[i].exptime = total(info[gd].duration>0)  ; total processing time
+     visitinfo[i].duration = total(info[gd].duration>0)  ; total processing time
    endfor
    
    ; Create HTML files
