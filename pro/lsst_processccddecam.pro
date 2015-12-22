@@ -355,7 +355,9 @@ lsst_printlog,logfile,''
 ; Make commands for processCcdDecam
 cmd = thisprog+'.py '+datarepodir+' --id visit='+visit+' ccdnum='+ccdnum
 ; add thread limit global variable
-if n_elements(nthreads) gt 0 then cmd='setenv OMP_NUM_THREADS '+strtrim(nthreads,2)+' ; '+cmd
+;  it's a different environmental variable for mac vs. unix/linux
+if arch eq 'mac' then nthreads_envvar='VECLIB_MAXIMUM_THREADS' else nthreads_envvar='OMP_NUM_THREADS'
+if n_elements(nthreads) gt 0 then cmd='setenv '+nthreads_envvar+' '+strtrim(nthreads,2)+' ; '+cmd
 ; add configuration file
 if n_elements(configfile) gt 0 then cmd+=' --configfile '+configfile
 ; Add date before and after
