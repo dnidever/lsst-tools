@@ -308,6 +308,7 @@ If not keyword_set(redo) then begin
 
 ; Redoing, erase files for ones previously processed
 Endif else begin
+  lsst_printlog,logfile,'Redoing.  Deleting output files from previous processing.'
   scriptfile = datarepodir+'/'+visit+'/calexp/'+thisprog+'-'+visit+'_'+ccdnum+'.sh'
   donearr = file_test(scriptfile)
   ; Some done already, erase old files
