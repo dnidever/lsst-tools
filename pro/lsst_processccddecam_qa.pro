@@ -19,7 +19,8 @@ qastr = {datarepodir:'',visit:'',ccdnum:'',runtimestamp:-1LL,scriptfile:'',logfi
          success:0,duration:-1.0,ra:-1.0d0,dec:-1.0d0,dateobs:'',airmass:'',$
          filter:'',exptime:-1.0,fwhm:-1.0,fluxmag0:-1.0,calexpfile:'',nx:-1L,ny:-1L,$
          medbackground:-1.0,sigbackground:-1.0,srcfile:'',nsources:-1L,calexp_plotfile:'',src_plotfile:'',$
-         initpsffwhm:-1.0,npsfstars_selected:-1L,npsfstars_used:-1L,ncosmicrays:-1L,wcsrms:-1.0,ndetected:-1L,ndeblended:-1L}
+         initpsffwhm:-1.0,npsfstars_selected:-1L,npsfstars_used:-1L,ncosmicrays:-1L,wcsrms:-1.0,magzero:-1.0,rmsmagzero:-1.0,$
+         ndetected:-1L,ndeblended:-1L}
 qastr.datarepodir = datarepodir
 qastr.visit = visit[0]
 qastr.ccdnum = ccdnum[0]
@@ -205,6 +206,19 @@ if file_test(logfile) then begin
     hi = strpos(line1,'+-') 
     wcsrms = float(strmid(line1,lo+10,hi-lo-11))
     qastr.wcsrms = wcsrms
+  endif
+  ; processCcdDecam.calibrate.photocal: Magnitude zero point: 29.763386 +/- 0.000326 from 63 stars
+  photocalind = where(stregex(loglines,'^processCcdDecam.calibrate.photocal: Magnitude zero point:',/boolean) eq 1,nphotocalind)
+  if nphotocalind gt 0 then begin
+    line1 = loglines[photocalind[nphotocalind-1]]
+    dum = strsplit(line1,' ',/extract)
+    lo = strpos(line1,'point: ')
+    hi = strpos(line1,'+/-')
+    hi2 = strpos(line1,' from ')
+    magzero = float(strmid(line1,lo+6,hi-lo-6))
+    rmsmagzero = float(strmid(line1,hi+3,hi2-hi-2))
+    qastr.magzero = magzero
+    qastr.rmsmagzero = rmsmagzero
   endif
   ; processCcdDecam.detection: Detected 3462 positive sources to 5 sigma.
   ndetectedind = where(stregex(loglines,'^processCcdDecam.detection: Detected ',/boolean) eq 1,ndetectedind)
