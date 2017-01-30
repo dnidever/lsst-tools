@@ -95,7 +95,7 @@ if file_test(logfile) eq 0 then SPAWN,'touch '+logfile,out
 ; What architecture are we working on
 spawn,['uname'],out,errout,/noshell
 out = strtrim(out[0],2)
-case out of:
+case out of
    'Darwin': arch='mac'
    'Linux': arch='linux'
    else: arch='unix'
@@ -373,6 +373,7 @@ inpname = 'processCcdDecam-'+visit+'_'+ccdnum
 ; Submit the jobs to the daemon
 JOB_DAEMON,cmd,dirs,jobs=jobstr,nmulti=nmulti,inpname=inpname,hyperthread=hyperthread,statustime=60
 
+
 ; SHOULD JOBSTR BE SAVED TO DISK??
 
 ; return the name of the scriptfiles
@@ -512,7 +513,8 @@ if keyword_set(doqa) then begin
                      success:0,duration:-1.0,ra:-1.0d0,dec:-1.0d0,dateobs:'',airmass:'',$
                      filter:'',exptime:-1.0,fwhm:-1.0,fluxmag0:-1.0,calexpfile:'',nx:-1L,ny:-1L,$
                      medbackground:-1.0,sigbackground:-1.0,srcfile:'',nsources:-1L,calexp_plotfile:'',src_plotfile:'',$
-                     initpsffwhm:-1.0,npsfstars_selected:-1L,npsfstars_used:-1L,ncosmicrays:-1L,wcsrms:-1.0,ndetected:-1L,ndeblended:-1L},nqalist)
+                     initpsffwhm:-1.0,npsfstars_selected:-1L,npsfstars_used:-1L,ncosmicrays:-1L,wcsrms:-1.0,rmsapcorr:-1.0,$
+                     magzero:-1.0,rmsmagzero:-1.0,ndetected:-1L,ndeblended:-1L},nqalist)
    info.visit = qalist.visit
    info.ccdnum = qalist.ccdnum
    info.success = qalist.success

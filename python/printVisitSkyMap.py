@@ -35,14 +35,19 @@ def doPolygonsOverlap(xPolygon1, yPolygon1, xPolygon2, yPolygon2):
     # If a vertex of one of the polygons is inside the other polygon
     # then they overlap.
     
-    n = len(xPolygon2)
+    n1 = len(xPolygon1)
+    n2 = len(xPolygon2)
     isin = False
 
     # Loop through all vertices of second polygon
-    for i in range(n):
+    for i in range(n2):
         # perform iterative boolean OR
         # if any point is inside the polygon then they overlap   
         isin = isin or isPointInPolygon(xPolygon1, yPolygon1, xPolygon2[i], yPolygon2[i])
+
+    # Need to do the reverse as well, not the same
+    for i in range(n1):
+        isin = isin or isPointInPolygon(xPolygon2, yPolygon2, xPolygon1[i], yPolygon1[i])
 
     return isin
 
